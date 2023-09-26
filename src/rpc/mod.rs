@@ -6,13 +6,12 @@ use reth::providers::{
     AccountReader, BlockReaderIdExt, ChainSpecProvider, ChangeSetReader, HeaderProvider,
     StateProviderFactory, WithdrawalsProvider,
 };
-use reth::rpc::types_compat::engine::payload::try_into_sealed_block;
 use reth::rpc::result::ToRpcResultExt;
+use reth::rpc::types_compat::engine::payload::try_into_sealed_block;
 
 use std::sync::Arc;
 
 use crate::ValidationApi;
-
 
 mod types;
 use types::ExecutionPayloadValidation;
@@ -30,7 +29,6 @@ pub trait ValidationApi {
         execution_payload: ExecutionPayloadValidation,
     ) -> RpcResult<()>;
 }
-
 
 impl<Provider> ValidationApi<Provider> {
     /// The provider that can interact with the chain.
@@ -76,10 +74,11 @@ impl<Provider> std::fmt::Debug for ValidationApi<Provider> {
 
 impl<Provider> Clone for ValidationApi<Provider> {
     fn clone(&self) -> Self {
-        Self { inner: Arc::clone(&self.inner) }
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
     }
 }
-
 
 pub struct ValidationApiInner<Provider> {
     /// The provider that can interact with the chain.

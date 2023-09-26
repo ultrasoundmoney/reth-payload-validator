@@ -1,9 +1,7 @@
-use reth::rpc::types::{
-    ExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2,Withdrawal,
-};
 use derivative::Derivative;
 use reth::primitives::{Address, Bloom, Bytes, H256, U256};
-use serde::{ Deserialize, Serialize};
+use reth::rpc::types::{ExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2, Withdrawal};
+use serde::{Deserialize, Serialize};
 use serde_this_or_that::as_u64;
 
 /// Structure to deserialize execution payloads sent according to the builder api spec

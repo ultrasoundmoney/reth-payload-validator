@@ -15,7 +15,6 @@ use clap::Parser;
 use reth::cli::Cli;
 use std::sync::Arc;
 
-
 mod cli_ext;
 use cli_ext::ValidationCliExt;
 
@@ -30,4 +29,3 @@ fn main() {
 pub struct ValidationApi<Provider> {
     inner: Arc<ValidationApiInner<Provider>>,
 }
-

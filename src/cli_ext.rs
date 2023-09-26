@@ -5,16 +5,16 @@ use reth::{
     },
     network::{NetworkInfo, Peers},
     providers::{
-        AccountReader, BlockReaderIdExt, CanonStateSubscriptions, ChainSpecProvider, ChangeSetReader,
-        EvmEnvProvider, StateProviderFactory,
+        AccountReader, BlockReaderIdExt, CanonStateSubscriptions, ChainSpecProvider,
+        ChangeSetReader, EvmEnvProvider, StateProviderFactory,
     },
     rpc::builder::{RethModuleRegistry, TransportRpcModules},
     tasks::TaskSpawner,
     transaction_pool::TransactionPool,
 };
 
-use crate::ValidationApi;
 use crate::rpc::ValidationApiServer;
+use crate::ValidationApi;
 
 /// The type that tells the reth CLI what extensions to use
 pub struct ValidationCliExt;
@@ -57,7 +57,7 @@ impl RethNodeCommandConfig for RethCliValidationApi {
         Events: CanonStateSubscriptions + Clone + 'static,
     {
         if !self.enable_ext {
-            return Ok(())
+            return Ok(());
         }
 
         // here we get the configured pool type from the CLI.
@@ -71,5 +71,3 @@ impl RethNodeCommandConfig for RethCliValidationApi {
         Ok(())
     }
 }
-
-
