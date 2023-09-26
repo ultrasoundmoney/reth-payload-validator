@@ -11,7 +11,7 @@ use reth::rpc::result::ToRpcResultExt;
 
 use std::sync::Arc;
 
-use crate::ValidationExt;
+use crate::ValidationApi;
 
 
 mod types;
@@ -32,21 +32,21 @@ pub trait ValidationApi {
 }
 
 
-impl<Provider> ValidationExt<Provider> {
+impl<Provider> ValidationApi<Provider> {
     /// The provider that can interact with the chain.
     pub fn provider(&self) -> &Provider {
         &self.inner.provider
     }
 
-    /// Create a new instance of the [ValidationExt]
+    /// Create a new instance of the [ValidationApi]
     pub fn new(provider: Provider) -> Self {
-        let inner = Arc::new(ValidationExtInner { provider });
+        let inner = Arc::new(ValidationApiInner { provider });
         Self { inner }
     }
 }
 
 #[async_trait]
-impl<Provider> ValidationApiServer for ValidationExt<Provider>
+impl<Provider> ValidationApiServer for ValidationApi<Provider>
 where
     Provider: BlockReaderIdExt
         + ChainSpecProvider
@@ -68,20 +68,20 @@ where
     }
 }
 
-impl<Provider> std::fmt::Debug for ValidationExt<Provider> {
+impl<Provider> std::fmt::Debug for ValidationApi<Provider> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ValidationApi").finish_non_exhaustive()
     }
 }
 
-impl<Provider> Clone for ValidationExt<Provider> {
+impl<Provider> Clone for ValidationApi<Provider> {
     fn clone(&self) -> Self {
         Self { inner: Arc::clone(&self.inner) }
     }
 }
 
 
-pub struct ValidationExtInner<Provider> {
+pub struct ValidationApiInner<Provider> {
     /// The provider that can interact with the chain.
     provider: Provider,
 }

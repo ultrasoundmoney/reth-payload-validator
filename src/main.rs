@@ -20,14 +20,14 @@ mod cli_ext;
 use cli_ext::MyRethCliExt;
 
 mod rpc;
-use rpc::ValidationExtInner;
+use rpc::ValidationApiInner;
 
 fn main() {
     Cli::<MyRethCliExt>::parse().run().unwrap();
 }
 
 /// The type that implements the `txpool` rpc namespace trait
-pub struct ValidationExt<Provider> {
-    inner: Arc<ValidationExtInner<Provider>>,
+pub struct ValidationApi<Provider> {
+    inner: Arc<ValidationApiInner<Provider>>,
 }
 
