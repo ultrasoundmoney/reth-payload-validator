@@ -6,4 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = "4.4.5"
+eyre = "0.6.8"
+jsonrpsee = "0.20.1"
 reth = { git = "https://github.com/paradigmxyz/reth" }
