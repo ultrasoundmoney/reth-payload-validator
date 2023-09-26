@@ -13,18 +13,21 @@
 //! ```
 use clap::Parser;
 use reth::cli::Cli;
+use std::sync::Arc;
 
 
 mod cli_ext;
 use cli_ext::MyRethCliExt;
 
 mod rpc;
+use rpc::ValidationExtInner;
 
 fn main() {
     Cli::<MyRethCliExt>::parse().run().unwrap();
 }
 
 /// The type that implements the `txpool` rpc namespace trait
-pub struct TxpoolExt<Pool> {
-    pool: Pool,
+pub struct ValidationExt<Provider> {
+    inner: Arc<ValidationExtInner<Provider>>,
 }
+

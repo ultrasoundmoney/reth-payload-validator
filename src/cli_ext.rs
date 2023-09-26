@@ -13,26 +13,26 @@ use reth::{
     transaction_pool::TransactionPool,
 };
 
-use crate::rpc::TxpoolExtApiServer;
-use crate::TxpoolExt;
+use crate::ValidationExt;
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// The type that tells the reth CLI what extensions to use
 pub struct MyRethCliExt;
 
 impl RethCliExt for MyRethCliExt {
-    /// This tells the reth CLI to install the `txpool` rpc namespace via `RethCliTxpoolExt`
-    type Node = RethCliTxpoolExt;
+    /// This tells the reth CLI to install the `txpool` rpc namespace via `RethCliValidationExt`
+    type Node = RethCliValidationExt;
 }
 
 /// Our custom cli args extension that adds one flag to reth default CLI.
 #[derive(Debug, Clone, Copy, Default, clap::Args)]
-pub struct RethCliTxpoolExt {
+pub struct RethCliValidationExt {
     /// CLI flag to enable the txpool extension namespace
     #[clap(long)]
     pub enable_ext: bool,
 }
 
-impl RethNodeCommandConfig for RethCliTxpoolExt {
+impl RethNodeCommandConfig for RethCliValidationExt {
     // This is the entrypoint for the CLI to extend the RPC server with custom rpc namespaces.
     fn extend_rpc_modules<Conf, Provider, Pool, Network, Tasks, Events>(
         &mut self,
@@ -60,8 +60,8 @@ impl RethNodeCommandConfig for RethCliTxpoolExt {
         }
 
         // here we get the configured pool type from the CLI.
-        let pool = registry.pool().clone();
-        let ext = TxpoolExt { pool };
+        let provider = registry.provider().clone();
+        let ext = ValidationExt::new(provider);
 
         // now we merge our extension namespace into all configured transports
         modules.merge_configured(ext.into_rpc())?;

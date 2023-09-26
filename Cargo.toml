@@ -6,7 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1.73"
 clap = "4.4.5"
+derivative = "2.2.0"
 eyre = "0.6.8"
 jsonrpsee = "0.20.1"
-reth = { git = "https://github.com/paradigmxyz/reth" }
+reth = { git = "https://github.com/ultrasoundmoney/reth-block-validator", branch = "re-export-types-compat-and-consensus-common" }
+serde = "1.0.188"
+serde-this-or-that = "0.4.2"
