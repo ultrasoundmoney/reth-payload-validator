@@ -17,13 +17,13 @@ use std::sync::Arc;
 
 
 mod cli_ext;
-use cli_ext::MyRethCliExt;
+use cli_ext::ValidationCliExt;
 
 mod rpc;
 use rpc::ValidationApiInner;
 
 fn main() {
-    Cli::<MyRethCliExt>::parse().run().unwrap();
+    Cli::<ValidationCliExt>::parse().run().unwrap();
 }
 
 /// The type that implements the `txpool` rpc namespace trait

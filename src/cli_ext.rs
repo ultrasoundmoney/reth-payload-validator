@@ -17,9 +17,9 @@ use crate::ValidationApi;
 use crate::rpc::ValidationApiServer;
 
 /// The type that tells the reth CLI what extensions to use
-pub struct MyRethCliExt;
+pub struct ValidationCliExt;
 
-impl RethCliExt for MyRethCliExt {
+impl RethCliExt for ValidationCliExt {
     /// This tells the reth CLI to install the `txpool` rpc namespace via `RethCliValidationApi`
     type Node = RethCliValidationApi;
 }
