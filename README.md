@@ -1,4 +1,4 @@
-# Reth based Block Validator Api
+# Reth based Builder Payload Validator Api
 Reth rpc extension to add an endpoint for validation of builder submissions as received by a relay.
 
 ## Get Started
