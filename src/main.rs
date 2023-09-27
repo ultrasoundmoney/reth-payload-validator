@@ -1,15 +1,16 @@
-//! Example of how to use additional rpc namespaces in the reth CLI
+//! Reth RPC extension to add endpoint for builder payload validation
 //!
 //! Run with
 //!
 //! ```not_rust
-//! cargo run -p additional-rpc-namespace-in-cli -- node --http --ws --enable-ext
+//! RUST_LOG=info cargo run -- node --full --metrics 127.0.0.1:9001 --http --enable-ext
 //! ```
 //!
-//! This installs an additional RPC method `txpoolExt_transactionCount` that can queried via [cast](https://github.com/foundry-rs/foundry)
+//! This installs an additional RPC method that can be queried using the provided sample rpc
+//! payload
 //!
 //! ```sh
-//! cast rpc txpoolExt_transactionCount
+//! curl --location 'localhost:8545/' --header 'Content-Type: application/json' --data @test/data/rpc_payload.json
 //! ```
 use clap::Parser;
 use reth::cli::Cli;
@@ -25,7 +26,7 @@ fn main() {
     Cli::<ValidationCliExt>::parse().run().unwrap();
 }
 
-/// The type that implements the `txpool` rpc namespace trait
+/// The type that implements the `validation` rpc namespace trait
 pub struct ValidationApi<Provider> {
     inner: Arc<ValidationApiInner<Provider>>,
 }

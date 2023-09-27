@@ -20,14 +20,14 @@ use crate::ValidationApi;
 pub struct ValidationCliExt;
 
 impl RethCliExt for ValidationCliExt {
-    /// This tells the reth CLI to install the `txpool` rpc namespace via `RethCliValidationApi`
+    /// This tells the reth CLI to install the `validation` rpc namespace via `RethCliValidationApi`
     type Node = RethCliValidationApi;
 }
 
 /// Our custom cli args extension that adds one flag to reth default CLI.
 #[derive(Debug, Clone, Copy, Default, clap::Args)]
 pub struct RethCliValidationApi {
-    /// CLI flag to enable the txpool extension namespace
+    /// CLI flag to enable the validation extension namespace
     #[clap(long)]
     pub enable_ext: bool,
 }
@@ -67,7 +67,7 @@ impl RethNodeCommandConfig for RethCliValidationApi {
         // now we merge our extension namespace into all configured transports
         modules.merge_configured(ext.into_rpc())?;
 
-        println!("txpool extension enabled");
+        println!("validation extension enabled");
         Ok(())
     }
 }
