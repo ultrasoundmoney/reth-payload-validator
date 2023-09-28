@@ -6,8 +6,8 @@ use reth::providers::{
     AccountReader, BlockReaderIdExt, ChainSpecProvider, ChangeSetReader, HeaderProvider,
     StateProviderFactory, WithdrawalsProvider,
 };
-use reth::rpc::result::ToRpcResult;
 use reth::rpc::compat::engine::payload::try_into_sealed_block;
+use reth::rpc::result::ToRpcResult;
 
 use std::sync::Arc;
 
