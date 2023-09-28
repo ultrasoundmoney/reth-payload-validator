@@ -6,8 +6,8 @@ use reth::providers::{
     AccountReader, BlockReaderIdExt, ChainSpecProvider, ChangeSetReader, HeaderProvider,
     StateProviderFactory, WithdrawalsProvider,
 };
-use reth::rpc::result::ToRpcResultExt;
-use reth::rpc::types_compat::engine::payload::try_into_sealed_block;
+use reth::rpc::result::ToRpcResult;
+use reth::rpc::compat::engine::payload::try_into_sealed_block;
 
 use std::sync::Arc;
 
@@ -60,9 +60,9 @@ where
         &self,
         execution_payload: ExecutionPayloadValidation,
     ) -> RpcResult<()> {
-        let block = try_into_sealed_block(execution_payload.into(), None).map_ok_or_rpc_err()?;
+        let block = try_into_sealed_block(execution_payload.into(), None).to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
-        full_validation(&block, self.provider(), &chain_spec).map_ok_or_rpc_err()
+        full_validation(&block, self.provider(), &chain_spec).to_rpc_result()
     }
 }
 
