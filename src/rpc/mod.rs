@@ -14,7 +14,7 @@ use std::sync::Arc;
 use crate::ValidationApi;
 
 mod types;
-use types::ExecutionPayloadValidation;
+use types::ValidationRequestBody;
 
 /// trait interface for a custom rpc namespace: `validation`
 ///
@@ -26,7 +26,7 @@ pub trait ValidationApi {
     #[method(name = "validateBuilderSubmissionV1")]
     async fn validate_builder_submission_v1(
         &self,
-        execution_payload: ExecutionPayloadValidation,
+        request_body: ValidationRequestBody,
     ) -> RpcResult<()>;
 }
 
@@ -58,9 +58,9 @@ where
     /// Validates a block submitted to the relay
     async fn validate_builder_submission_v1(
         &self,
-        execution_payload: ExecutionPayloadValidation,
+        request_body: ValidationRequestBody,
     ) -> RpcResult<()> {
-        let block = try_into_sealed_block(execution_payload.into(), None).to_rpc_result()?;
+        let block = try_into_sealed_block(request_body.execution_payload.into(), None).to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
         full_validation(&block, self.provider(), &chain_spec).to_rpc_result()
     }

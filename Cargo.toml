@@ -13,4 +13,4 @@ eyre = "0.6.8"
 jsonrpsee = "0.20.1"
 reth = { git = "https://github.com/ultrasoundmoney/reth-block-validator", branch = "changes-to-enable-validation-api-extension" }
 serde = "1.0.188"
-serde-this-or-that = "0.4.2"
+serde_with = "3.3.0"
