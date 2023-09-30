@@ -1,5 +1,5 @@
 use derivative::Derivative;
-use reth::primitives::{Address, Bloom, Bytes, H256, U256, U64};
+use reth::primitives::{Address, Bloom, Bytes, B256, U256, U64};
 use reth::rpc::types::{ExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2, Withdrawal};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
@@ -19,8 +19,8 @@ pub struct ValidationRequestBody {
 pub struct BidTrace {
     #[serde_as(as = "DisplayFromStr")]
     pub slot: u64,
-    pub parent_hash: H256,
-    pub block_hash: H256,
+    pub parent_hash: B256,
+    pub block_hash: B256,
     pub builder_pubkey: Bytes,
     pub proposer_pubkey: Bytes,
     pub proposer_fee_recipient: Bytes,
@@ -40,12 +40,12 @@ pub struct BidTrace {
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ExecutionPayloadValidation {
-    pub parent_hash: H256,
+    pub parent_hash: B256,
     pub fee_recipient: Address,
-    pub state_root: H256,
-    pub receipts_root: H256,
+    pub state_root: B256,
+    pub receipts_root: B256,
     pub logs_bloom: Bloom,
-    pub prev_randao: H256,
+    pub prev_randao: B256,
     #[serde_as(as = "DisplayFromStr")]
     pub block_number: u64,
     #[serde_as(as = "DisplayFromStr")]
@@ -56,7 +56,7 @@ pub struct ExecutionPayloadValidation {
     pub timestamp: u64,
     pub extra_data: Bytes,
     pub base_fee_per_gas: U256,
-    pub block_hash: H256,
+    pub block_hash: B256,
     #[derivative(Debug = "ignore")]
     pub transactions: Vec<Bytes>,
     pub withdrawals: Vec<WithdrawalValidation>,
