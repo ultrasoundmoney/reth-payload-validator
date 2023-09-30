@@ -67,7 +67,11 @@ where
             try_into_sealed_block(request_body.execution_payload.into(), None).to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
 
-        compare_values("ParentHash", request_body.message.parent_hash, block.parent_hash)?;
+        compare_values(
+            "ParentHash",
+            request_body.message.parent_hash,
+            block.parent_hash,
+        )?;
         compare_values("BlockHash", request_body.message.block_hash, block.hash())?;
         compare_values("GasLimit", request_body.message.gas_limit, block.gas_limit)?;
         compare_values("GasUsed", request_body.message.gas_used, block.gas_used)?;
@@ -95,7 +99,11 @@ pub struct ValidationApiInner<Provider> {
     provider: Provider,
 }
 
-fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(name: &str, expected: T, actual: T) -> RpcResult<()> {
+fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(
+    name: &str,
+    expected: T,
+    actual: T,
+) -> RpcResult<()> {
     if expected != actual {
         Err(internal_rpc_err(format!(
             "incorrect {} {}, expected {}",
