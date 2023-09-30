@@ -60,7 +60,8 @@ where
         &self,
         request_body: ValidationRequestBody,
     ) -> RpcResult<()> {
-        let block = try_into_sealed_block(request_body.execution_payload.into(), None).to_rpc_result()?;
+        let block =
+            try_into_sealed_block(request_body.execution_payload.into(), None).to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
         full_validation(&block, self.provider(), &chain_spec).to_rpc_result()
     }

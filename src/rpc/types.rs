@@ -10,7 +10,7 @@ pub struct ValidationRequestBody {
     pub execution_payload: ExecutionPayloadValidation,
     pub message: BidTrace,
     pub signature: Bytes,
-    pub registered_gas_limit: String
+    pub registered_gas_limit: String,
 }
 
 #[serde_as]
@@ -34,11 +34,11 @@ pub struct BidTrace {
 
 /// Structure to deserialize execution payloads sent according to the builder api spec
 /// Numeric fields deserialized as decimals (unlike crate::eth::engine::ExecutionPayload)
+#[serde_as]
 #[derive(Derivative)]
 #[derivative(Debug)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-#[serde_as]
 pub struct ExecutionPayloadValidation {
     pub parent_hash: H256,
     pub fee_recipient: Address,
@@ -63,8 +63,8 @@ pub struct ExecutionPayloadValidation {
 }
 
 /// Withdrawal object with numbers deserialized as decimals
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde_as]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WithdrawalValidation {
     /// Monotonically increasing identifier issued by consensus layer.
     #[serde_as(as = "DisplayFromStr")]
@@ -111,5 +111,17 @@ impl From<WithdrawalValidation> for Withdrawal {
             address: val.address,
             amount: val.amount,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const VALIDATION_REQUEST_BODY: &str = include_str!("../../test/data/single_payload.json");
+    #[test]
+    fn test_can_parse_validation_request_body() {
+        let _validation_request_body: ValidationRequestBody =
+            serde_json::from_str(VALIDATION_REQUEST_BODY).unwrap();
     }
 }
