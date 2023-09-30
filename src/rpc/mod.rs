@@ -67,34 +67,10 @@ where
             try_into_sealed_block(request_body.execution_payload.into(), None).to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
 
-        if request_body.message.parent_hash != block.parent_hash {
-            return Err(internal_rpc_err(format!(
-                "incorrect ParentHash {}, expected {}",
-                request_body.message.parent_hash, block.parent_hash
-            )));
-        }
-
-        if request_body.message.block_hash != block.hash() {
-            return Err(internal_rpc_err(format!(
-                "incorrect BlockHash {}, expected {}",
-                request_body.message.block_hash,
-                block.hash()
-            )));
-        }
-
-        if request_body.message.gas_limit != block.gas_limit {
-            return Err(internal_rpc_err(format!(
-                "incorrect GasLimit {}, expected {}",
-                request_body.message.gas_limit, block.gas_limit
-            )));
-        }
-
-        if request_body.message.gas_used != block.gas_used {
-            return Err(internal_rpc_err(format!(
-                "incorrect GasUsed {}, expected {}",
-                request_body.message.gas_used, block.gas_used
-            )));
-        }
+        compare_values("ParentHash", request_body.message.parent_hash, block.parent_hash)?;
+        compare_values("BlockHash", request_body.message.block_hash, block.hash())?;
+        compare_values("GasLimit", request_body.message.gas_limit, block.gas_limit)?;
+        compare_values("GasUsed", request_body.message.gas_used, block.gas_used)?;
 
         full_validation(&block, self.provider(), &chain_spec).to_rpc_result()
     }
@@ -117,4 +93,15 @@ impl<Provider> Clone for ValidationApi<Provider> {
 pub struct ValidationApiInner<Provider> {
     /// The provider that can interact with the chain.
     provider: Provider,
+}
+
+fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(name: &str, expected: T, actual: T) -> RpcResult<()> {
+    if expected != actual {
+        Err(internal_rpc_err(format!(
+            "incorrect {} {}, expected {}",
+            name, actual, expected
+        )))
+    } else {
+        Ok(())
+    }
 }
