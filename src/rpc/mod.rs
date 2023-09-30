@@ -19,12 +19,12 @@ use types::ValidationRequestBody;
 /// trait interface for a custom rpc namespace: `validation`
 ///
 /// This defines an additional namespace where all methods are configured as trait functions.
-#[rpc(server, namespace = "validationExt")]
+#[rpc(server, namespace = "flashbots")]
 #[async_trait]
 pub trait ValidationApi {
     /// Validates a block submitted to the relay
-    #[method(name = "validateBuilderSubmissionV1")]
-    async fn validate_builder_submission_v1(
+    #[method(name = "validateBuilderSubmissionV2")]
+    async fn validate_builder_submission_v2(
         &self,
         request_body: ValidationRequestBody,
     ) -> RpcResult<()>;
@@ -56,7 +56,7 @@ where
         + 'static,
 {
     /// Validates a block submitted to the relay
-    async fn validate_builder_submission_v1(
+    async fn validate_builder_submission_v2(
         &self,
         request_body: ValidationRequestBody,
     ) -> RpcResult<()> {
