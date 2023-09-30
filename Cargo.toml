@@ -10,6 +10,7 @@ async-trait = "0.1.73"
 clap = "4.4.5"
 derivative = "2.2.0"
 eyre = "0.6.8"
+hex = "0.4.3"
 jsonrpsee = "0.20.1"
 reth = { git = "https://github.com/ultrasoundmoney/reth-block-validator", branch = "changes-to-enable-validation-api-extension" }
 serde = "1.0.188"

@@ -16,6 +16,9 @@ use crate::ValidationApi;
 mod types;
 use types::ValidationRequestBody;
 
+mod result;
+use result::internal_rpc_err;
+
 /// trait interface for a custom rpc namespace: `validation`
 ///
 /// This defines an additional namespace where all methods are configured as trait functions.
@@ -63,6 +66,36 @@ where
         let block =
             try_into_sealed_block(request_body.execution_payload.into(), None).to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
+
+        if request_body.message.parent_hash != block.parent_hash {
+            return Err(internal_rpc_err(format!(
+                "incorrect ParentHash {}, expected {}",
+                request_body.message.parent_hash, block.parent_hash
+            )));
+        }
+
+        if request_body.message.block_hash != block.hash() {
+            return Err(internal_rpc_err(format!(
+                "incorrect BlockHash {}, expected {}",
+                request_body.message.block_hash,
+                block.hash()
+            )));
+        }
+
+        if request_body.message.gas_limit != block.gas_limit {
+            return Err(internal_rpc_err(format!(
+                "incorrect GasLimit {}, expected {}",
+                request_body.message.gas_limit, block.gas_limit
+            )));
+        }
+
+        if request_body.message.gas_used != block.gas_used {
+            return Err(internal_rpc_err(format!(
+                "incorrect GasUsed {}, expected {}",
+                request_body.message.gas_used, block.gas_used
+            )));
+        }
+
         full_validation(&block, self.provider(), &chain_spec).to_rpc_result()
     }
 }
