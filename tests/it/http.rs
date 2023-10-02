@@ -51,7 +51,7 @@ async fn test_wrong_hash() {
 async fn get_client() -> HttpClient {
     let server_addr = start_server().await;
     let uri = format!("http://{}", server_addr);
-    HttpClientBuilder::default().build(&uri).unwrap()
+    HttpClientBuilder::default().build(uri).unwrap()
 }
 
 async fn start_server() -> std::net::SocketAddr {
