@@ -16,3 +16,4 @@ reth = { git = "https://github.com/paradigmxyz/reth" }
 serde = "1.0.188"
 serde_json = "1.0.107"
 serde_with = "3.3.0"
+tokio = "1.32.0"

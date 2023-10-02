@@ -14,19 +14,10 @@
 //! ```
 use clap::Parser;
 use reth::cli::Cli;
-use std::sync::Arc;
+use reth_block_validator::ValidationCliExt;
 
-mod cli_ext;
-use cli_ext::ValidationCliExt;
-
-mod rpc;
-use rpc::ValidationApiInner;
 
 fn main() {
     Cli::<ValidationCliExt>::parse().run().unwrap();
 }
 
-/// The type that implements the `validation` rpc namespace trait
-pub struct ValidationApi<Provider> {
-    inner: Arc<ValidationApiInner<Provider>>,
-}

@@ -118,7 +118,7 @@ impl From<WithdrawalValidation> for Withdrawal {
 mod tests {
     use super::*;
 
-    const VALIDATION_REQUEST_BODY: &str = include_str!("../../test/data/single_payload.json");
+    const VALIDATION_REQUEST_BODY: &str = include_str!("../../tests/data/single_payload.json");
     #[test]
     fn test_can_parse_validation_request_body() {
         let _validation_request_body: ValidationRequestBody =
