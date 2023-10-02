@@ -1,15 +1,23 @@
 use reth::providers::test_utils::NoopProvider;
 use reth_block_validator::ValidationApi;
-use jsonrpsee::server::ServerBuilder;
-use reth_block_validator::rpc::ValidationApiServer;
+use jsonrpsee::{http_client::HttpClientBuilder, server::ServerBuilder};
+use reth_block_validator::rpc::{ValidationApiClient, ValidationApiServer, ValidationRequestBody};
 
 
 
 
+
+const VALIDATION_REQUEST_BODY: &str = include_str!("../../tests/data/single_payload.json");
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_call_admin_functions_ws() {
-    start_server().await;
+    let server_addr = start_server().await;
+	let uri = format!("http://{}", server_addr);
+	let client = HttpClientBuilder::default().build(&uri).unwrap();
+    let validation_request_body: ValidationRequestBody = serde_json::from_str(VALIDATION_REQUEST_BODY).unwrap();
+    let response = ValidationApiClient::validate_builder_submission_v2(&client, validation_request_body).await.unwrap();
+    println!("response: {:?}", response);
+
 }
 
 async fn start_server() -> std::net::SocketAddr {

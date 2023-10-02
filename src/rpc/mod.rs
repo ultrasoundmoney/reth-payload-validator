@@ -14,7 +14,7 @@ use std::sync::Arc;
 use crate::ValidationApi;
 
 mod types;
-use types::ValidationRequestBody;
+pub use types::ValidationRequestBody;
 
 mod result;
 use result::internal_rpc_err;
@@ -22,7 +22,7 @@ use result::internal_rpc_err;
 /// trait interface for a custom rpc namespace: `validation`
 ///
 /// This defines an additional namespace where all methods are configured as trait functions.
-#[rpc(server, namespace = "flashbots")]
+#[rpc(client, server, namespace = "flashbots")]
 #[async_trait]
 pub trait ValidationApi {
     /// Validates a block submitted to the relay
