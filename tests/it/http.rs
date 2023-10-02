@@ -1,6 +1,6 @@
 use reth::providers::test_utils::NoopProvider;
 use reth_block_validator::ValidationApi;
-use jsonrpsee::{http_client::HttpClientBuilder, server::ServerBuilder};
+use jsonrpsee::{core::error::Error, http_client::HttpClientBuilder, server::ServerBuilder};
 use reth_block_validator::rpc::{ValidationApiClient, ValidationApiServer, ValidationRequestBody};
 
 
@@ -15,8 +15,11 @@ async fn test_call_admin_functions_ws() {
 	let uri = format!("http://{}", server_addr);
 	let client = HttpClientBuilder::default().build(&uri).unwrap();
     let validation_request_body: ValidationRequestBody = serde_json::from_str(VALIDATION_REQUEST_BODY).unwrap();
-    let response = ValidationApiClient::validate_builder_submission_v2(&client, validation_request_body).await.unwrap();
-    println!("response: {:?}", response);
+    let result = ValidationApiClient::validate_builder_submission_v2(&client, validation_request_body.clone()).await;
+    let expected_message =
+        format!("Block parent [hash:{:?}] is not known.", validation_request_body.execution_payload.parent_hash);
+    let error_message = get_call_error_message(result.unwrap_err()).unwrap();
+    assert_eq!(error_message, expected_message);
 
 }
 
@@ -32,30 +35,9 @@ async fn start_server() -> std::net::SocketAddr {
     addr
 }
 
-// /// Returns an [RpcModuleBuilder] with testing components.
-// pub fn test_rpc_builder() -> RpcModuleBuilder<
-//     NoopProvider,
-//     TestPool,
-//     NoopNetwork,
-//     TokioTaskExecutor,
-//     TestCanonStateSubscriptions,
-// > {
-//     RpcModuleBuilder::default()
-//         .with_provider(NoopProvider::default())
-//         .with_pool(testing_pool())
-//         .with_network(NoopNetwork::default())
-//         .with_executor(TokioTaskExecutor::default())
-//         .with_events(TestCanonStateSubscriptions::default())
-// }
-
-// /// Launches a new server with http only with the given modules
-// pub async fn launch_http(modules: impl Into<RpcModuleSelection>) -> RpcServerHandle {
-//     let builder = test_rpc_builder();
-//     let server = builder.build(TransportRpcModuleConfig::set_http(modules));
-//     server
-//         .start_server(RpcServerConfig::http(Default::default()).with_http_address(test_address()))
-//         .await
-//         .unwrap()
-// }
-
-
+fn get_call_error_message(err: Error) -> Option<String> {
+    match err {
+        Error::Call(error_obj) => Some(error_obj.message().to_string()),
+        _ => None,
+    }
+}
