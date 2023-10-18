@@ -1,17 +1,8 @@
-use reth::{
-    cli::{
+use reth::cli::{
         config::RethRpcConfig,
         ext::{RethCliExt, RethNodeCommandConfig},
-    },
-    network::{NetworkInfo, Peers},
-    providers::{
-        AccountReader, BlockReaderIdExt, CanonStateSubscriptions, ChainSpecProvider,
-        ChangeSetReader, EvmEnvProvider, StateProviderFactory,
-    },
-    rpc::builder::{RethModuleRegistry, TransportRpcModules},
-    tasks::TaskSpawner,
-    transaction_pool::TransactionPool,
-};
+        components::{RethNodeComponents, RethRpcComponents},
+    };
 
 use crate::rpc::ValidationApiServer;
 use crate::ValidationApi;
@@ -34,38 +25,26 @@ pub struct RethCliValidationApi {
 
 impl RethNodeCommandConfig for RethCliValidationApi {
     // This is the entrypoint for the CLI to extend the RPC server with custom rpc namespaces.
-    fn extend_rpc_modules<Conf, Provider, Pool, Network, Tasks, Events>(
+    fn extend_rpc_modules<Conf, Reth>(
         &mut self,
         _config: &Conf,
-        registry: &mut RethModuleRegistry<Provider, Pool, Network, Tasks, Events>,
-        modules: &mut TransportRpcModules,
+        _components: &Reth,
+        rpc_components: RethRpcComponents<'_, Reth>,
     ) -> eyre::Result<()>
     where
         Conf: RethRpcConfig,
-        Provider: BlockReaderIdExt
-            + AccountReader
-            + StateProviderFactory
-            + EvmEnvProvider
-            + ChainSpecProvider
-            + ChangeSetReader
-            + Clone
-            + Unpin
-            + 'static,
-        Pool: TransactionPool + Clone + 'static,
-        Network: NetworkInfo + Peers + Clone + 'static,
-        Tasks: TaskSpawner + Clone + 'static,
-        Events: CanonStateSubscriptions + Clone + 'static,
+        Reth: RethNodeComponents,
     {
         if !self.enable_ext {
             return Ok(());
         }
 
         // here we get the configured pool type from the CLI.
-        let provider = registry.provider().clone();
+        let provider = rpc_components.registry.provider().clone();
         let ext = ValidationApi::new(provider);
 
         // now we merge our extension namespace into all configured transports
-        modules.merge_configured(ext.into_rpc())?;
+        rpc_components.modules.merge_configured(ext.into_rpc())?;
 
         println!("validation extension enabled");
         Ok(())

@@ -1,5 +1,5 @@
 use derivative::Derivative;
-use reth::primitives::{Address, Bloom, Bytes, H256, U256};
+use reth::primitives::{Address, Bloom, Bytes, B256, U256, U64};
 use reth::rpc::types::{ExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2, Withdrawal};
 use serde::{Deserialize, Serialize};
 use serde_this_or_that::as_u64;
@@ -11,23 +11,19 @@ use serde_this_or_that::as_u64;
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ExecutionPayloadValidation {
-    pub parent_hash: H256,
+    pub parent_hash: B256,
     pub fee_recipient: Address,
-    pub state_root: H256,
-    pub receipts_root: H256,
+    pub state_root: B256,
+    pub receipts_root: B256,
     pub logs_bloom: Bloom,
-    pub prev_randao: H256,
-    #[serde(deserialize_with = "as_u64")]
-    pub block_number: u64,
-    #[serde(deserialize_with = "as_u64")]
-    pub gas_limit: u64,
-    #[serde(deserialize_with = "as_u64")]
-    pub gas_used: u64,
-    #[serde(deserialize_with = "as_u64")]
-    pub timestamp: u64,
+    pub prev_randao: B256,
+    pub block_number: U64,
+    pub gas_limit: U64,
+    pub gas_used: U64,
+    pub timestamp: U64,
     pub extra_data: Bytes,
     pub base_fee_per_gas: U256,
-    pub block_hash: H256,
+    pub block_hash: B256,
     #[derivative(Debug = "ignore")]
     pub transactions: Vec<Bytes>,
     pub withdrawals: Vec<WithdrawalValidation>,
@@ -59,10 +55,10 @@ impl From<ExecutionPayloadValidation> for ExecutionPayload {
                 receipts_root: val.receipts_root,
                 logs_bloom: val.logs_bloom,
                 prev_randao: val.prev_randao,
-                block_number: val.block_number.into(),
-                gas_limit: val.gas_limit.into(),
-                gas_used: val.gas_used.into(),
-                timestamp: val.timestamp.into(),
+                block_number: val.block_number,
+                gas_limit: val.gas_limit,
+                gas_used: val.gas_used,
+                timestamp: val.timestamp,
                 extra_data: val.extra_data,
                 base_fee_per_gas: val.base_fee_per_gas,
                 block_hash: val.block_hash,
