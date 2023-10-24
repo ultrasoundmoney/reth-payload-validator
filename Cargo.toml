@@ -12,7 +12,7 @@ derivative = "2.2.0"
 eyre = "0.6.8"
 hex = "0.4.3"
 jsonrpsee = "0.20.1"
-reth = { git = "https://github.com/paradigmxyz/reth" }
+reth = { git = "https://github.com/paradigmxyz/reth", commit = "fd697d9d3f1574f3bfd1fba8c45acddca4461731"}
 serde = "1.0.188"
 serde_json = "1.0.107"
 serde_with = "3.3.0"
