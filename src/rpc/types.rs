@@ -1,51 +1,81 @@
 use derivative::Derivative;
-use reth::primitives::{Address, Bloom, Bytes, H256, U256};
+use reth::primitives::{Address, Bloom, Bytes, B256, U256, U64};
 use reth::rpc::types::{ExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2, Withdrawal};
 use serde::{Deserialize, Serialize};
-use serde_this_or_that::as_u64;
+use serde_with::{serde_as, DisplayFromStr};
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct ValidationRequestBody {
+    pub execution_payload: ExecutionPayloadValidation,
+    pub message: BidTrace,
+    pub signature: Bytes,
+    pub registered_gas_limit: String,
+}
+
+#[serde_as]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct BidTrace {
+    #[serde_as(as = "DisplayFromStr")]
+    pub slot: u64,
+    pub parent_hash: B256,
+    pub block_hash: B256,
+    pub builder_pubkey: Bytes,
+    pub proposer_pubkey: Bytes,
+    pub proposer_fee_recipient: Bytes,
+    #[serde_as(as = "DisplayFromStr")]
+    pub gas_limit: u64,
+    #[serde_as(as = "DisplayFromStr")]
+    pub gas_used: u64,
+    #[serde_as(as = "DisplayFromStr")]
+    pub value: U256,
+}
 
 /// Structure to deserialize execution payloads sent according to the builder api spec
 /// Numeric fields deserialized as decimals (unlike crate::eth::engine::ExecutionPayload)
+#[serde_as]
 #[derive(Derivative)]
 #[derivative(Debug)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ExecutionPayloadValidation {
-    pub parent_hash: H256,
+    pub parent_hash: B256,
     pub fee_recipient: Address,
-    pub state_root: H256,
-    pub receipts_root: H256,
+    pub state_root: B256,
+    pub receipts_root: B256,
     pub logs_bloom: Bloom,
-    pub prev_randao: H256,
-    #[serde(deserialize_with = "as_u64")]
+    pub prev_randao: B256,
+    #[serde_as(as = "DisplayFromStr")]
     pub block_number: u64,
-    #[serde(deserialize_with = "as_u64")]
+    #[serde_as(as = "DisplayFromStr")]
     pub gas_limit: u64,
-    #[serde(deserialize_with = "as_u64")]
+    #[serde_as(as = "DisplayFromStr")]
     pub gas_used: u64,
-    #[serde(deserialize_with = "as_u64")]
+    #[serde_as(as = "DisplayFromStr")]
     pub timestamp: u64,
     pub extra_data: Bytes,
     pub base_fee_per_gas: U256,
-    pub block_hash: H256,
+    pub block_hash: B256,
     #[derivative(Debug = "ignore")]
     pub transactions: Vec<Bytes>,
     pub withdrawals: Vec<WithdrawalValidation>,
 }
 
 /// Withdrawal object with numbers deserialized as decimals
+#[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WithdrawalValidation {
     /// Monotonically increasing identifier issued by consensus layer.
-    #[serde(deserialize_with = "as_u64")]
+    #[serde_as(as = "DisplayFromStr")]
     pub index: u64,
     /// Index of validator associated with withdrawal.
-    #[serde(deserialize_with = "as_u64")]
+    #[serde_as(as = "DisplayFromStr")]
     pub validator_index: u64,
     /// Target address for withdrawn ether.
     pub address: Address,
     /// Value of the withdrawal in gwei.
-    #[serde(deserialize_with = "as_u64")]
+    #[serde_as(as = "DisplayFromStr")]
     pub amount: u64,
 }
 
@@ -59,10 +89,10 @@ impl From<ExecutionPayloadValidation> for ExecutionPayload {
                 receipts_root: val.receipts_root,
                 logs_bloom: val.logs_bloom,
                 prev_randao: val.prev_randao,
-                block_number: val.block_number.into(),
-                gas_limit: val.gas_limit.into(),
-                gas_used: val.gas_used.into(),
-                timestamp: val.timestamp.into(),
+                block_number: U64::from(val.block_number),
+                gas_limit: U64::from(val.gas_limit),
+                gas_used: U64::from(val.gas_used),
+                timestamp: U64::from(val.timestamp),
                 extra_data: val.extra_data,
                 base_fee_per_gas: val.base_fee_per_gas,
                 block_hash: val.block_hash,
@@ -81,5 +111,17 @@ impl From<WithdrawalValidation> for Withdrawal {
             address: val.address,
             amount: val.amount,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const VALIDATION_REQUEST_BODY: &str = include_str!("../../tests/data/single_payload.json");
+    #[test]
+    fn test_can_parse_validation_request_body() {
+        let _validation_request_body: ValidationRequestBody =
+            serde_json::from_str(VALIDATION_REQUEST_BODY).unwrap();
     }
 }

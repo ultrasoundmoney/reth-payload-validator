@@ -14,19 +14,22 @@ use std::sync::Arc;
 use crate::ValidationApi;
 
 mod types;
-use types::ExecutionPayloadValidation;
+pub use types::ValidationRequestBody;
+
+mod result;
+use result::internal_rpc_err;
 
 /// trait interface for a custom rpc namespace: `validation`
 ///
 /// This defines an additional namespace where all methods are configured as trait functions.
-#[rpc(server, namespace = "validationExt")]
+#[rpc(client, server, namespace = "flashbots")]
 #[async_trait]
 pub trait ValidationApi {
     /// Validates a block submitted to the relay
-    #[method(name = "validateBuilderSubmissionV1")]
-    async fn validate_builder_submission_v1(
+    #[method(name = "validateBuilderSubmissionV2")]
+    async fn validate_builder_submission_v2(
         &self,
-        execution_payload: ExecutionPayloadValidation,
+        request_body: ValidationRequestBody,
     ) -> RpcResult<()>;
 }
 
@@ -56,12 +59,23 @@ where
         + 'static,
 {
     /// Validates a block submitted to the relay
-    async fn validate_builder_submission_v1(
+    async fn validate_builder_submission_v2(
         &self,
-        execution_payload: ExecutionPayloadValidation,
+        request_body: ValidationRequestBody,
     ) -> RpcResult<()> {
-        let block = try_into_sealed_block(execution_payload.into(), None).to_rpc_result()?;
+        let block =
+            try_into_sealed_block(request_body.execution_payload.into(), None).to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
+
+        compare_values(
+            "ParentHash",
+            request_body.message.parent_hash,
+            block.parent_hash,
+        )?;
+        compare_values("BlockHash", request_body.message.block_hash, block.hash())?;
+        compare_values("GasLimit", request_body.message.gas_limit, block.gas_limit)?;
+        compare_values("GasUsed", request_body.message.gas_used, block.gas_used)?;
+
         full_validation(&block, self.provider(), &chain_spec).to_rpc_result()
     }
 }
@@ -83,4 +97,19 @@ impl<Provider> Clone for ValidationApi<Provider> {
 pub struct ValidationApiInner<Provider> {
     /// The provider that can interact with the chain.
     provider: Provider,
+}
+
+fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(
+    name: &str,
+    expected: T,
+    actual: T,
+) -> RpcResult<()> {
+    if expected != actual {
+        Err(internal_rpc_err(format!(
+            "incorrect {} {}, expected {}",
+            name, actual, expected
+        )))
+    } else {
+        Ok(())
+    }
 }
