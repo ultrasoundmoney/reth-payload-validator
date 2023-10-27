@@ -2,8 +2,10 @@ use async_trait::async_trait;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use reth::consensus_common::validation::full_validation;
+use reth::revm::{database::StateProviderDatabase, processor::EVMProcessor};
+use reth::primitives::{Address, ChainSpec, SealedBlock, U256};
 use reth::providers::{
-    AccountReader, BlockReaderIdExt, ChainSpecProvider, ChangeSetReader, HeaderProvider,
+    AccountReader, BlockExecutor, BlockReaderIdExt, ChainSpecProvider, ChangeSetReader, HeaderProvider,
     StateProviderFactory, WithdrawalsProvider,
 };
 use reth::rpc::compat::engine::payload::try_into_sealed_block;
@@ -33,7 +35,18 @@ pub trait ValidationApi {
     ) -> RpcResult<()>;
 }
 
-impl<Provider> ValidationApi<Provider> {
+impl<Provider> ValidationApi<Provider> 
+where
+    Provider: BlockReaderIdExt
+        + ChainSpecProvider
+        + ChangeSetReader
+        + StateProviderFactory
+        + HeaderProvider
+        + AccountReader
+        + WithdrawalsProvider
+        + 'static,
+
+{
     /// The provider that can interact with the chain.
     pub fn provider(&self) -> &Provider {
         &self.inner.provider
@@ -44,6 +57,21 @@ impl<Provider> ValidationApi<Provider> {
         let inner = Arc::new(ValidationApiInner { provider });
         Self { inner }
     }
+
+    fn check_proposer_payment(
+        &self,
+        block: &SealedBlock,
+        chain_spec: Arc<ChainSpec>,
+        _expected_payment: &U256,
+        _fee_recipient: &Address
+    ) -> RpcResult<()> {
+        let state_provider = self.provider().latest().to_rpc_result()?;
+        let mut executor = EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(state_provider));
+        let unsealed_block =  block.clone().unseal();
+        executor.execute_and_verify_receipt(&unsealed_block, block.difficulty, None).map_err(|e| internal_rpc_err(format!("Error executing block: {:}", e.to_string())))?;
+        Ok(())
+    }
+
 }
 
 #[async_trait]
@@ -64,7 +92,7 @@ where
         request_body: ValidationRequestBody,
     ) -> RpcResult<()> {
         let block =
-            try_into_sealed_block(request_body.execution_payload.into(), None).to_rpc_result()?;
+            try_into_sealed_block(request_body.execution_payload.clone().into(), None).to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
 
         compare_values(
@@ -76,8 +104,16 @@ where
         compare_values("GasLimit", request_body.message.gas_limit, block.gas_limit)?;
         compare_values("GasUsed", request_body.message.gas_used, block.gas_used)?;
 
-        full_validation(&block, self.provider(), &chain_spec).to_rpc_result()
+        full_validation(&block, self.provider(), &chain_spec).to_rpc_result()?;
+
+        self.check_proposer_payment(
+            &block,
+            chain_spec.clone(),
+            &request_body.message.value,
+            &request_body.execution_payload.fee_recipient
+        )
     }
+
 }
 
 impl<Provider> std::fmt::Debug for ValidationApi<Provider> {
@@ -113,3 +149,4 @@ fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(
         Ok(())
     }
 }
+
