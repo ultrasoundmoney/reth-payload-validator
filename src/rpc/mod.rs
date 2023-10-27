@@ -2,12 +2,12 @@ use async_trait::async_trait;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use reth::consensus_common::validation::full_validation;
-use reth::revm::{database::StateProviderDatabase, processor::EVMProcessor};
 use reth::primitives::{Address, ChainSpec, SealedBlock, U256};
 use reth::providers::{
-    AccountReader, BlockExecutor, BlockReaderIdExt, ChainSpecProvider, ChangeSetReader, HeaderProvider,
-    StateProviderFactory, WithdrawalsProvider,
+    AccountReader, BlockReaderIdExt, ChainSpecProvider, ChangeSetReader,
+    HeaderProvider, StateProviderFactory, WithdrawalsProvider,
 };
+use reth::revm::{database::StateProviderDatabase, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_sealed_block;
 use reth::rpc::result::ToRpcResult;
 
@@ -35,7 +35,7 @@ pub trait ValidationApi {
     ) -> RpcResult<()>;
 }
 
-impl<Provider> ValidationApi<Provider> 
+impl<Provider> ValidationApi<Provider>
 where
     Provider: BlockReaderIdExt
         + ChainSpecProvider
@@ -45,7 +45,6 @@ where
         + AccountReader
         + WithdrawalsProvider
         + 'static,
-
 {
     /// The provider that can interact with the chain.
     pub fn provider(&self) -> &Provider {
@@ -62,16 +61,56 @@ where
         &self,
         block: &SealedBlock,
         chain_spec: Arc<ChainSpec>,
-        _expected_payment: &U256,
-        _fee_recipient: &Address
+        expected_payment: &U256,
+        fee_recipient: &Address,
     ) -> RpcResult<()> {
         let state_provider = self.provider().latest().to_rpc_result()?;
-        let mut executor = EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(state_provider));
-        let unsealed_block =  block.clone().unseal();
-        executor.execute_and_verify_receipt(&unsealed_block, block.difficulty, None).map_err(|e| internal_rpc_err(format!("Error executing block: {:}", e.to_string())))?;
+        let mut executor =
+            EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(state_provider));
+
+        let unsealed_block = block.clone().unseal();
+        let (receipts, _cumulative_gas) = executor
+            .execute_transactions(&unsealed_block, block.difficulty, None)
+            .map_err(|e| internal_rpc_err(format!("Error executing transactions: {:}", e.to_string())))?;
+
+        let num_transactions = block.body.len();
+        if num_transactions == 0  {
+            return Err(internal_rpc_err(format!("No transactions in block")));
+        }
+        if num_transactions != receipts.len() {
+            return Err(internal_rpc_err(format!(
+                "Number of receipts ({}) does not match number of transactions ({})",
+                receipts.len(),
+                num_transactions
+            )));
+        }
+
+        let proposer_payment_tx = block.body[num_transactions - 1].clone();
+        if proposer_payment_tx.to() != Some(*fee_recipient)  {
+            return Err(internal_rpc_err(format!(
+                "Proposer payment tx to address {:?} does not match fee recipient {}",
+                proposer_payment_tx.to(),
+                fee_recipient
+            )));
+        }
+
+        if U256::from(proposer_payment_tx.value()) != *expected_payment {
+            return Err(internal_rpc_err(format!(
+                "Proposer payment tx value {} does not match expected payment {}",
+                proposer_payment_tx.value(), expected_payment
+            )));
+        }
+
+        let proposer_payment_receipt = receipts[num_transactions - 1].clone();
+        if !proposer_payment_receipt.success {
+            return Err(internal_rpc_err(format!(
+                "Proposer payment tx failed: {:?}",
+                proposer_payment_receipt
+            )));
+        }
+
         Ok(())
     }
-
 }
 
 #[async_trait]
@@ -91,8 +130,8 @@ where
         &self,
         request_body: ValidationRequestBody,
     ) -> RpcResult<()> {
-        let block =
-            try_into_sealed_block(request_body.execution_payload.clone().into(), None).to_rpc_result()?;
+        let block = try_into_sealed_block(request_body.execution_payload.clone().into(), None)
+            .to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
 
         compare_values(
@@ -110,10 +149,9 @@ where
             &block,
             chain_spec.clone(),
             &request_body.message.value,
-            &request_body.execution_payload.fee_recipient
+            &request_body.execution_payload.fee_recipient,
         )
     }
-
 }
 
 impl<Provider> std::fmt::Debug for ValidationApi<Provider> {
@@ -149,4 +187,3 @@ fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(
         Ok(())
     }
 }
-
