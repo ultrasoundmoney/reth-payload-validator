@@ -2,12 +2,12 @@ use async_trait::async_trait;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use reth::consensus_common::validation::full_validation;
-use reth::primitives::{Address, ChainSpec, SealedBlock, U256};
+use reth::primitives::{Address, ChainSpec, Receipts, SealedBlock, TransactionSigned, U256};
 use reth::providers::{
     AccountReader, BlockExecutor, BlockReaderIdExt, ChainSpecProvider, ChangeSetReader,
     HeaderProvider, StateProviderFactory, WithdrawalsProvider,
 };
-use reth::revm::{database::StateProviderDatabase, processor::EVMProcessor};
+use reth::revm::{database::StateProviderDatabase, db::BundleState, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_sealed_block;
 use reth::rpc::result::ToRpcResult;
 
@@ -66,88 +66,106 @@ where
     ) -> RpcResult<()> {
         let state_provider = self.provider().latest().to_rpc_result()?;
 
-
         let mut executor =
             EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(state_provider));
 
         let unsealed_block = block.clone().unseal();
         executor
             .execute_and_verify_receipt(&unsealed_block, block.difficulty, None)
-            .map_err(|e| internal_rpc_err(format!("Error executing transactions: {:}", e.to_string())))?;
+            .map_err(|e| internal_rpc_err(format!("Error executing transactions: {:}", e)))?;
 
         let output_state = executor.take_output_state();
 
-        let fee_receiver_account_state = output_state
-            .state().state.get(fee_recipient)
-            .ok_or_else(|| {
-                internal_rpc_err(format!(
-                    "Fee recipient account not found"
-                ))
-            })?;
-        let fee_receiver_account_after = fee_receiver_account_state.info.clone().ok_or_else(|| {
-            internal_rpc_err(format!(
-                "Fee recipient account info not found"
-            ))
-        })?;
-        let fee_receiver_account_before = fee_receiver_account_state.original_info.clone().ok_or_else(|| {
-            internal_rpc_err(format!(
-                "Fee recipient original account info not found"
-            ))
-        })?;
-
-        if fee_receiver_account_after.balance >= (fee_receiver_account_before.balance + expected_payment) {
+        if check_proposer_balance_change(
+            output_state.state().clone(),
+            fee_recipient,
+            expected_payment,
+        )? {
             return Ok(());
         }
 
-
-        let receipts = output_state.receipts();
-        if receipts.is_empty() || receipts[0].is_empty() {
-            return Err(internal_rpc_err(format!("No receipts in block")));
-        }
-        let receipts = &receipts[0];
-
-        let num_transactions = block.body.len();
-        if num_transactions == 0  {
-            return Err(internal_rpc_err(format!("No transactions in block")));
-        }
-        if num_transactions != receipts.len() {
-            return Err(internal_rpc_err(format!(
-                "Number of receipts ({}) does not match number of transactions ({})",
-                receipts.len(),
-                num_transactions
-            )));
-        }
-
-        let proposer_payment_tx = block.body[num_transactions - 1].clone();
-        if proposer_payment_tx.to() != Some(*fee_recipient)  {
-            return Err(internal_rpc_err(format!(
-                "Proposer payment tx to address {:?} does not match fee recipient {}",
-                proposer_payment_tx.to(),
-                fee_recipient
-            )));
-        }
-
-        if U256::from(proposer_payment_tx.value()) != *expected_payment {
-            return Err(internal_rpc_err(format!(
-                "Proposer payment tx value {} does not match expected payment {}",
-                proposer_payment_tx.value(), expected_payment
-            )));
-        }
-
-        let proposer_payment_receipt = receipts[num_transactions - 1].clone().ok_or_else(|| {
-            internal_rpc_err(format!(
-                "Proposer payment receipt not found in block receipts"
-            ))
-        })?;
-        if !proposer_payment_receipt.success {
-            return Err(internal_rpc_err(format!(
-                "Proposer payment tx failed: {:?}",
-                proposer_payment_receipt
-            )));
-        }
-
-        Ok(())
+        check_proposer_payment_in_last_transaction(
+            &block.body,
+            output_state.receipts(),
+            fee_recipient,
+            expected_payment,
+        )
     }
+}
+
+fn check_proposer_payment_in_last_transaction(
+    transactions: &Vec<TransactionSigned>,
+    receipts: &Receipts,
+    fee_recipient: &Address,
+    expected_payment: &U256,
+) -> RpcResult<()> {
+    if receipts.is_empty() || receipts[0].is_empty() {
+        return Err(internal_rpc_err("No receipts in block"));
+    }
+    let receipts = &receipts[0];
+
+    let num_transactions = transactions.len();
+    if num_transactions == 0 {
+        return Err(internal_rpc_err("No transactions in block"));
+    }
+    if num_transactions != receipts.len() {
+        return Err(internal_rpc_err(format!(
+            "Number of receipts ({}) does not match number of transactions ({})",
+            receipts.len(),
+            num_transactions
+        )));
+    }
+
+    let proposer_payment_tx = transactions[num_transactions - 1].clone();
+    if proposer_payment_tx.to() != Some(*fee_recipient) {
+        return Err(internal_rpc_err(format!(
+            "Proposer payment tx to address {:?} does not match fee recipient {}",
+            proposer_payment_tx.to(),
+            fee_recipient
+        )));
+    }
+
+    if U256::from(proposer_payment_tx.value()) != *expected_payment {
+        return Err(internal_rpc_err(format!(
+            "Proposer payment tx value {} does not match expected payment {}",
+            proposer_payment_tx.value(),
+            expected_payment
+        )));
+    }
+
+    let proposer_payment_receipt = receipts[num_transactions - 1]
+        .clone()
+        .ok_or_else(|| internal_rpc_err("Proposer payment receipt not found in block receipts"))?;
+    if !proposer_payment_receipt.success {
+        return Err(internal_rpc_err(format!(
+            "Proposer payment tx failed: {:?}",
+            proposer_payment_receipt
+        )));
+    }
+
+    Ok(())
+}
+
+fn check_proposer_balance_change(
+    output_state: BundleState,
+    fee_recipient: &Address,
+    expected_payment: &U256,
+) -> RpcResult<bool> {
+    let fee_receiver_account_state = output_state
+        .state
+        .get(fee_recipient)
+        .ok_or_else(|| internal_rpc_err("Fee recipient account not found"))?;
+    let fee_receiver_account_after = fee_receiver_account_state
+        .info
+        .clone()
+        .ok_or_else(|| internal_rpc_err("Fee recipient account info not found"))?;
+    let fee_receiver_account_before = fee_receiver_account_state
+        .original_info
+        .clone()
+        .ok_or_else(|| internal_rpc_err("Fee recipient original account info not found"))?;
+
+    Ok(fee_receiver_account_after.balance
+        >= (fee_receiver_account_before.balance + expected_payment))
 }
 
 #[async_trait]
