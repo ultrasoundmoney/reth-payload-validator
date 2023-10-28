@@ -4,7 +4,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use reth::consensus_common::validation::full_validation;
 use reth::primitives::{Address, ChainSpec, Receipts, SealedBlock, TransactionSigned, U256};
 use reth::providers::{
-    AccountReader, BlockExecutor, BlockReaderIdExt, ChainSpecProvider, ChangeSetReader,
+    AccountReader, BlockExecutor, BlockReaderIdExt, ChainSpecProvider,
     HeaderProvider, StateProviderFactory, WithdrawalsProvider,
 };
 use reth::revm::{database::StateProviderDatabase, db::BundleState, processor::EVMProcessor};
@@ -39,7 +39,6 @@ impl<Provider> ValidationApi<Provider>
 where
     Provider: BlockReaderIdExt
         + ChainSpecProvider
-        + ChangeSetReader
         + StateProviderFactory
         + HeaderProvider
         + AccountReader
@@ -173,7 +172,6 @@ impl<Provider> ValidationApiServer for ValidationApi<Provider>
 where
     Provider: BlockReaderIdExt
         + ChainSpecProvider
-        + ChangeSetReader
         + StateProviderFactory
         + HeaderProvider
         + AccountReader

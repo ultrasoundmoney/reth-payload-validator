@@ -3,7 +3,7 @@ use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
     server::ServerBuilder,
 };
-use reth::providers::test_utils::NoopProvider;
+use reth::providers::test_utils::MockEthProvider;
 use reth_block_validator::rpc::{ValidationApiClient, ValidationApiServer, ValidationRequestBody};
 use reth_block_validator::ValidationApi;
 
@@ -57,7 +57,7 @@ async fn get_client() -> HttpClient {
 async fn start_server() -> std::net::SocketAddr {
     let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
     let addr = server.local_addr().unwrap();
-    let provider = NoopProvider::default();
+    let provider = MockEthProvider::default();
     let api = ValidationApi::new(provider);
     let server_handle = server.start(api.into_rpc());
 
