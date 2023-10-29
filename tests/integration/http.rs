@@ -4,7 +4,7 @@ use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
     server::ServerBuilder,
 };
-use reth::providers::test_utils::MockEthProvider;
+use reth::providers::test_utils::{ExtendedAccount, MockEthProvider};
 use reth::primitives::{Address, Block, Bloom, Bytes, Header, B256, U256};
 use reth_block_validator::rpc::{BidTrace, ExecutionPayloadValidation, ValidationApiClient, ValidationApiServer, ValidationRequestBody};
 use reth::rpc::compat::engine::payload::try_into_block;
@@ -54,12 +54,15 @@ async fn test_valid_block() {
     let parent_block_hash = parent_block.header.hash_slow();
     provider.add_block(parent_block_hash, parent_block.clone());
 
+    let fee_recipient = Address::random();
+    provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
+
     let mut validation_request_body = ValidationRequestBody::default();
+    validation_request_body.execution_payload.fee_recipient = fee_recipient;
     validation_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
     validation_request_body.execution_payload.timestamp = timestamp;
     validation_request_body.execution_payload.parent_hash = parent_block_hash;
     validation_request_body.execution_payload.block_number = parent_block.header.number + 1;
-    println!("gas_limit: {:?}", parent_block.gas_limit);
     validation_request_body.execution_payload.gas_limit = parent_block.gas_limit;
     validation_request_body.message.gas_limit = parent_block.gas_limit;
     validation_request_body.message.parent_hash = parent_block_hash;
@@ -73,12 +76,13 @@ async fn test_valid_block() {
 
 
     validation_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
-    println!("validation_request_body: {:?}", validation_request_body);
     let result = ValidationApiClient::validate_builder_submission_v2(
         &client,
         validation_request_body.clone(),
     ).await;
+
     println!("result: {:?}", result);
+    assert!(result.is_ok());
 }
 
 #[tokio::test(flavor = "multi_thread")]
