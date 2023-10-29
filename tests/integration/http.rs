@@ -1,14 +1,20 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 use jsonrpsee::{
     core::error::Error,
     http_client::{HttpClient, HttpClientBuilder},
     server::ServerBuilder,
 };
-use reth::providers::test_utils::{ExtendedAccount, MockEthProvider};
 use reth::primitives::{Address, Block, Bloom, Bytes, Header, B256, U256};
-use reth_block_validator::rpc::{BidTrace, ExecutionPayloadValidation, ValidationApiClient, ValidationApiServer, ValidationRequestBody};
 use reth::rpc::compat::engine::payload::try_into_block;
+use reth::{
+    providers::test_utils::{ExtendedAccount, MockEthProvider},
+    revm::primitives::FixedBytes,
+};
+use reth_block_validator::rpc::{
+    BidTrace, ExecutionPayloadValidation, ValidationApiClient, ValidationApiServer,
+    ValidationRequestBody,
+};
 use reth_block_validator::ValidationApi;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const VALIDATION_REQUEST_BODY: &str = include_str!("../../tests/data/single_payload.json");
 
@@ -43,43 +49,26 @@ async fn test_valid_block() {
         .as_secs();
     println!("timestamp: {:?}", timestamp);
 
-    let parent_block = Block::default();
-    let parent_block_hash = parent_block.header.hash_slow();
-    provider.add_block(parent_block_hash, parent_block.clone());
-
-    let mut parent_request_body = ValidationRequestBody::default();
-    parent_request_body.execution_payload.gas_limit = 1_000_000;
-    parent_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
-    let parent_block = try_into_block(parent_request_body.execution_payload.clone().into(), None).expect("failed to create block");
-    let parent_block_hash = parent_block.header.hash_slow();
-    provider.add_block(parent_block_hash, parent_block.clone());
+    let gas_limit = 1_000_000;
+    let parent_block = add_block(provider.clone(), gas_limit, base_fee_per_gas);
+    let parent_block_hash = parent_block.hash_slow();
 
     let fee_recipient = Address::random();
     provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
 
-    let mut validation_request_body = ValidationRequestBody::default();
-    validation_request_body.execution_payload.fee_recipient = fee_recipient;
-    validation_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
-    validation_request_body.execution_payload.timestamp = timestamp;
-    validation_request_body.execution_payload.parent_hash = parent_block_hash;
-    validation_request_body.execution_payload.block_number = parent_block.header.number + 1;
-    validation_request_body.execution_payload.gas_limit = parent_block.gas_limit;
-    validation_request_body.message.gas_limit = parent_block.gas_limit;
-    validation_request_body.message.parent_hash = parent_block_hash;
+    let validation_request_body = generate_validation_request_body(
+        parent_block,
+        parent_block_hash,
+        fee_recipient,
+        timestamp + 10,
+        base_fee_per_gas,
+    );
 
-    let block = try_into_block(validation_request_body.execution_payload.clone().into(), None).expect("failed to create block");
-    let sealed_block = block.seal_slow();
-    validation_request_body.execution_payload.block_hash = sealed_block.hash();
-    validation_request_body.message.block_hash = sealed_block.hash();
-        
-        
-
-
-    validation_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
     let result = ValidationApiClient::validate_builder_submission_v2(
         &client,
         validation_request_body.clone(),
-    ).await;
+    )
+    .await;
 
     println!("result: {:?}", result);
     assert!(result.is_ok());
@@ -129,4 +118,42 @@ fn get_call_error_message(err: Error) -> Option<String> {
         Error::Call(error_obj) => Some(error_obj.message().to_string()),
         _ => None,
     }
+}
+
+fn add_block(provider: MockEthProvider, gas_limit: u64, base_fee_per_gas: u64) -> Block {
+    let mut parent_payload = ExecutionPayloadValidation::default();
+    parent_payload.gas_limit = 1_000_000;
+    parent_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
+    let parent_block =
+        try_into_block(parent_payload.clone().into(), None).expect("failed to create block");
+    let parent_block_hash = parent_block.header.hash_slow();
+    provider.add_block(parent_block_hash, parent_block.clone());
+    return parent_block;
+}
+
+fn generate_validation_request_body(
+    parent_block: Block,
+    parent_block_hash: FixedBytes<32>,
+    fee_recipient: Address,
+    timestamp: u64,
+    base_fee_per_gas: u64,
+) -> ValidationRequestBody {
+    let mut validation_request_body = ValidationRequestBody::default();
+    validation_request_body.execution_payload.fee_recipient = fee_recipient;
+    validation_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
+    validation_request_body.execution_payload.timestamp = timestamp;
+    validation_request_body.execution_payload.parent_hash = parent_block_hash;
+    validation_request_body.execution_payload.block_number = parent_block.header.number + 1;
+    validation_request_body.execution_payload.gas_limit = parent_block.gas_limit;
+    validation_request_body.message.gas_limit = parent_block.gas_limit;
+    validation_request_body.message.parent_hash = parent_block_hash;
+    let block = try_into_block(
+        validation_request_body.execution_payload.clone().into(),
+        None,
+    )
+    .expect("failed to create block");
+    let sealed_block = block.seal_slow();
+    validation_request_body.execution_payload.block_hash = sealed_block.hash();
+    validation_request_body.message.block_hash = sealed_block.hash();
+    validation_request_body
 }

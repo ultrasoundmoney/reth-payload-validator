@@ -4,8 +4,8 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use reth::consensus_common::validation::full_validation;
 use reth::primitives::{Address, ChainSpec, Receipts, SealedBlock, TransactionSigned, U256};
 use reth::providers::{
-    AccountReader, BlockExecutor, BlockReaderIdExt, ChainSpecProvider,
-    HeaderProvider, StateProviderFactory, WithdrawalsProvider,
+    AccountReader, BlockExecutor, BlockReaderIdExt, ChainSpecProvider, HeaderProvider,
+    StateProviderFactory, WithdrawalsProvider,
 };
 use reth::revm::{database::StateProviderDatabase, db::BundleState, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_sealed_block;
