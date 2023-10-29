@@ -43,9 +43,27 @@ async fn test_valid_block() {
         .as_secs();
     println!("timestamp: {:?}", timestamp);
 
+    let parent_block = Block::default();
+    let parent_block_hash = parent_block.header.hash_slow();
+    provider.add_block(parent_block_hash, parent_block.clone());
+
+    let mut parent_request_body = ValidationRequestBody::default();
+    parent_request_body.execution_payload.gas_limit = 1_000_000;
+    parent_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
+    let parent_block = try_into_block(parent_request_body.execution_payload.clone().into(), None).expect("failed to create block");
+    let parent_block_hash = parent_block.header.hash_slow();
+    provider.add_block(parent_block_hash, parent_block.clone());
+
     let mut validation_request_body = ValidationRequestBody::default();
     validation_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
     validation_request_body.execution_payload.timestamp = timestamp;
+    validation_request_body.execution_payload.parent_hash = parent_block_hash;
+    validation_request_body.execution_payload.block_number = parent_block.header.number + 1;
+    println!("gas_limit: {:?}", parent_block.gas_limit);
+    validation_request_body.execution_payload.gas_limit = parent_block.gas_limit;
+    validation_request_body.message.gas_limit = parent_block.gas_limit;
+    validation_request_body.message.parent_hash = parent_block_hash;
+
     let block = try_into_block(validation_request_body.execution_payload.clone().into(), None).expect("failed to create block");
     let sealed_block = block.seal_slow();
     validation_request_body.execution_payload.block_hash = sealed_block.hash();
