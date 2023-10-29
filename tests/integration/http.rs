@@ -1,3 +1,4 @@
+use std::time::{SystemTime, UNIX_EPOCH};
 use jsonrpsee::{
     core::error::Error,
     http_client::{HttpClient, HttpClientBuilder},
@@ -35,12 +36,20 @@ async fn test_valid_block() {
     let client = get_client(Some(provider.clone())).await;
 
     let base_fee_per_gas = 1_000_000_000;
+    let start = SystemTime::now();
+    let timestamp = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs();
+    println!("timestamp: {:?}", timestamp);
 
     let mut validation_request_body = ValidationRequestBody::default();
     validation_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
+    validation_request_body.execution_payload.timestamp = timestamp;
     let block = try_into_block(validation_request_body.execution_payload.clone().into(), None).expect("failed to create block");
     let sealed_block = block.seal_slow();
     validation_request_body.execution_payload.block_hash = sealed_block.hash();
+    validation_request_body.message.block_hash = sealed_block.hash();
         
         
 
