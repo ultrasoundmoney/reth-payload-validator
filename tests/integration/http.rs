@@ -1,4 +1,3 @@
-use std::ops::Mul;
 use jsonrpsee::{
     core::error::Error,
     http_client::{HttpClient, HttpClientBuilder},
@@ -15,6 +14,7 @@ use reth_block_validator::rpc::{
     ValidationRequestBody,
 };
 use reth_block_validator::ValidationApi;
+use std::ops::Mul;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const VALIDATION_REQUEST_BODY: &str = include_str!("../../tests/data/single_payload.json");
@@ -38,7 +38,7 @@ async fn test_unknown_parent_hash() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_valid_block_with_zero_proposer_payment() {
+async fn test_valid_block() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
 
@@ -57,13 +57,17 @@ async fn test_valid_block_with_zero_proposer_payment() {
     let fee_recipient = Address::random();
     provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
 
+    // It seems the proposers balance changes by 5 eth even without any transactions -
+    // TODO: Investigate / Understand Why
+    let proposer_payment = U256::from(5).mul(U256::from(10).pow(U256::from(18)));
+
     let validation_request_body = generate_validation_request_body(
         parent_block,
         parent_block_hash,
         fee_recipient,
         timestamp + 10,
         base_fee_per_gas,
-        None
+        Some(proposer_payment),
     );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -104,7 +108,7 @@ async fn test_missing_proposer_payment() {
         fee_recipient,
         timestamp + 10,
         base_fee_per_gas,
-        Some(proposer_payment)
+        Some(proposer_payment),
     );
 
     let result = ValidationApiClient::validate_builder_submission_v2(

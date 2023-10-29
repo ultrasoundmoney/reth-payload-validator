@@ -100,13 +100,17 @@ fn check_proposer_payment_in_last_transaction(
     expected_payment: &U256,
 ) -> RpcResult<()> {
     if receipts.is_empty() || receipts[0].is_empty() {
-        return Err(internal_rpc_err("No receipts in block to verify proposer payment"));
+        return Err(internal_rpc_err(
+            "No receipts in block to verify proposer payment",
+        ));
     }
     let receipts = &receipts[0];
 
     let num_transactions = transactions.len();
     if num_transactions == 0 {
-        return Err(internal_rpc_err("No transactions in block to verify proposer payment"));
+        return Err(internal_rpc_err(
+            "No transactions in block to verify proposer payment",
+        ));
     }
     if num_transactions != receipts.len() {
         return Err(internal_rpc_err(format!(
