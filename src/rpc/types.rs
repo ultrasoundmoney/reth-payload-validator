@@ -4,7 +4,7 @@ use reth::rpc::types::{ExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2,
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ValidationRequestBody {
     pub execution_payload: ExecutionPayloadValidation,
@@ -14,7 +14,7 @@ pub struct ValidationRequestBody {
 }
 
 #[serde_as]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct BidTrace {
     #[serde_as(as = "DisplayFromStr")]
@@ -37,7 +37,7 @@ pub struct BidTrace {
 #[serde_as]
 #[derive(Derivative)]
 #[derivative(Debug)]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ExecutionPayloadValidation {
     pub parent_hash: B256,

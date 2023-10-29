@@ -16,7 +16,7 @@ use std::sync::Arc;
 use crate::ValidationApi;
 
 mod types;
-pub use types::ValidationRequestBody;
+pub use types::*;
 
 mod result;
 use result::internal_rpc_err;
