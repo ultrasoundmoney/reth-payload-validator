@@ -1,3 +1,4 @@
+use std::ops::Mul;
 use jsonrpsee::{
     core::error::Error,
     http_client::{HttpClient, HttpClientBuilder},
@@ -37,7 +38,7 @@ async fn test_unknown_parent_hash() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_valid_block() {
+async fn test_valid_block_with_zero_proposer_payment() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
 
@@ -62,6 +63,7 @@ async fn test_valid_block() {
         fee_recipient,
         timestamp + 10,
         base_fee_per_gas,
+        None
     );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -70,8 +72,50 @@ async fn test_valid_block() {
     )
     .await;
 
-    println!("result: {:?}", result);
+    // TODO: Verify that this is expected behaviour (the api accepting a payload with 0 value proposer payment)
     assert!(result.is_ok());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_missing_proposer_payment() {
+    let provider = MockEthProvider::default();
+    let client = get_client(Some(provider.clone())).await;
+
+    let base_fee_per_gas = 1_000_000_000;
+    let start = SystemTime::now();
+    let timestamp = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs();
+    println!("timestamp: {:?}", timestamp);
+
+    let gas_limit = 1_000_000;
+    let parent_block = add_block(provider.clone(), gas_limit, base_fee_per_gas);
+    let parent_block_hash = parent_block.hash_slow();
+
+    let fee_recipient = Address::random();
+    provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
+
+    let proposer_payment = U256::from(10).mul(U256::from(10).pow(U256::from(18)));
+
+    let validation_request_body = generate_validation_request_body(
+        parent_block,
+        parent_block_hash,
+        fee_recipient,
+        timestamp + 10,
+        base_fee_per_gas,
+        Some(proposer_payment)
+    );
+
+    let result = ValidationApiClient::validate_builder_submission_v2(
+        &client,
+        validation_request_body.clone(),
+    )
+    .await;
+
+    let expected_message = "No receipts in block to verify proposer payment";
+    let error_message = get_call_error_message(result.unwrap_err()).unwrap();
+    assert_eq!(error_message, expected_message);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -137,6 +181,7 @@ fn generate_validation_request_body(
     fee_recipient: Address,
     timestamp: u64,
     base_fee_per_gas: u64,
+    proposer_fee: Option<U256>,
 ) -> ValidationRequestBody {
     let mut validation_request_body = ValidationRequestBody::default();
     validation_request_body.execution_payload.fee_recipient = fee_recipient;
@@ -147,6 +192,11 @@ fn generate_validation_request_body(
     validation_request_body.execution_payload.gas_limit = parent_block.gas_limit;
     validation_request_body.message.gas_limit = parent_block.gas_limit;
     validation_request_body.message.parent_hash = parent_block_hash;
+
+    if let Some(proposer_fee) = proposer_fee {
+        validation_request_body.message.value = proposer_fee;
+    }
+
     let block = try_into_block(
         validation_request_body.execution_payload.clone().into(),
         None,

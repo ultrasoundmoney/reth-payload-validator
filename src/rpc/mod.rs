@@ -80,6 +80,7 @@ where
             fee_recipient,
             expected_payment,
         )? {
+            println!("Proposer payment verified by balance check");
             return Ok(());
         }
 
@@ -99,13 +100,13 @@ fn check_proposer_payment_in_last_transaction(
     expected_payment: &U256,
 ) -> RpcResult<()> {
     if receipts.is_empty() || receipts[0].is_empty() {
-        return Err(internal_rpc_err("No receipts in block"));
+        return Err(internal_rpc_err("No receipts in block to verify proposer payment"));
     }
     let receipts = &receipts[0];
 
     let num_transactions = transactions.len();
     if num_transactions == 0 {
-        return Err(internal_rpc_err("No transactions in block"));
+        return Err(internal_rpc_err("No transactions in block to verify proposer payment"));
     }
     if num_transactions != receipts.len() {
         return Err(internal_rpc_err(format!(
@@ -158,10 +159,19 @@ fn check_proposer_balance_change(
         .info
         .clone()
         .ok_or_else(|| internal_rpc_err("Fee recipient account info not found"))?;
+    println!(
+        "Fee receiver balance after: {:}",
+        fee_receiver_account_after.balance
+    );
     let fee_receiver_account_before = fee_receiver_account_state
         .original_info
         .clone()
         .ok_or_else(|| internal_rpc_err("Fee recipient original account info not found"))?;
+    println!(
+        "Fee receiver balance before: {:}",
+        fee_receiver_account_before.balance
+    );
+    println!("Expected payment: {:}", expected_payment);
 
     Ok(fee_receiver_account_after.balance
         >= (fee_receiver_account_before.balance + expected_payment))
