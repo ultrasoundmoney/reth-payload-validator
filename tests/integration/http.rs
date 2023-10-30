@@ -132,7 +132,7 @@ async fn test_missing_proposer_payment() {
     )
     .await;
 
-    let expected_message = "Fee recipient account not found";
+    let expected_message = "No receipts in block to verify proposer payment";
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     assert_eq!(error_message, expected_message);
 }

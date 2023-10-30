@@ -1,4 +1,3 @@
-use std::ops::Add;
 use async_trait::async_trait;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
@@ -82,8 +81,7 @@ where
             output_state.state().clone(),
             fee_recipient,
             expected_payment,
-        )? {
-            println!("Proposer payment verified by balance check");
+        ) {
             return Ok(());
         }
 
@@ -157,31 +155,22 @@ fn check_proposer_balance_change(
     output_state: BundleState,
     fee_recipient: &Address,
     expected_payment: &U256,
-) -> RpcResult<bool> {
-    let fee_receiver_account_state = output_state
-        .state
-        .get(fee_recipient)
-        .ok_or_else(|| internal_rpc_err("Fee recipient account not found"))?;
-    let fee_receiver_account_after = fee_receiver_account_state
-        .info
-        .clone()
-        .ok_or_else(|| internal_rpc_err("Fee recipient account info not found"))?;
-    println!(
-        "Fee receiver balance after: {:}",
-        fee_receiver_account_after.balance
-    );
-    let fee_receiver_account_before = fee_receiver_account_state
-        .original_info
-        .clone()
-        .ok_or_else(|| internal_rpc_err("Fee recipient original account info not found"))?;
-    println!(
-        "Fee receiver balance before: {:}",
-        fee_receiver_account_before.balance
-    );
-    println!("Expected payment: {:}", expected_payment);
+) -> bool {
+    let fee_receiver_account_state = match output_state.state.get(fee_recipient) {
+        Some(account) => account,
+        None => return false,
+    };
+    let fee_receiver_account_after = match fee_receiver_account_state.info.clone() {
+        Some(account) => account,
+        None => return false,
+    };
+    let fee_receiver_account_before = match fee_receiver_account_state.original_info.clone() {
+        Some(account) => account,
+        None => return false,
+    };
 
-    Ok(fee_receiver_account_after.balance
-        >= (fee_receiver_account_before.balance + expected_payment))
+    fee_receiver_account_after.balance
+        >= (fee_receiver_account_before.balance + expected_payment)
 }
 
 #[async_trait]
