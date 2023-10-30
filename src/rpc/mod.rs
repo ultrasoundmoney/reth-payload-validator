@@ -1,3 +1,4 @@
+use std::ops::Add;
 use async_trait::async_trait;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
@@ -68,9 +69,12 @@ where
         let mut executor =
             EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(state_provider));
 
+        let td = self.provider().header_td(&block.parent_hash).to_rpc_result()?.ok_or_else(
+            || internal_rpc_err(format!("Parent block {:?} not found", block.parent_hash)),
+        )?;
         let unsealed_block = block.clone().unseal();
         executor
-            .execute_and_verify_receipt(&unsealed_block, block.difficulty, None)
+            .execute_and_verify_receipt(&unsealed_block, td.add(block.difficulty), None)
             .map_err(|e| internal_rpc_err(format!("Error executing transactions: {:}", e)))?;
 
         let output_state = executor.take_output_state();
