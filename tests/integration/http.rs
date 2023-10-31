@@ -9,9 +9,7 @@ use reth::{
     providers::test_utils::{ExtendedAccount, MockEthProvider},
     revm::primitives::FixedBytes,
 };
-use reth_block_validator::rpc::{
-    ExecutionPayloadValidation, ValidationApiClient, ValidationApiServer, ValidationRequestBody,
-};
+use reth_block_validator::rpc::{ValidationApiClient, ValidationApiServer, ValidationRequestBody};
 use reth_block_validator::ValidationApi;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -166,15 +164,16 @@ fn add_block(provider: MockEthProvider, gas_limit: u64, base_fee_per_gas: u64) -
     let block = generate_block(gas_limit, base_fee_per_gas);
     let block_hash = block.header.hash_slow();
     provider.add_block(block_hash, block.clone());
-    return block;
+    block
 }
 
 fn generate_block(gas_limit: u64, base_fee_per_gas: u64) -> Block {
-    let mut payload = ExecutionPayloadValidation::default();
-    payload.gas_limit = gas_limit;
-    payload.base_fee_per_gas = U256::from(base_fee_per_gas);
-    let block = try_into_block(payload.clone().into(), None).expect("failed to create block");
-    block
+    let payload = reth_block_validator::rpc::ExecutionPayloadValidation {
+        gas_limit,
+        base_fee_per_gas: U256::from(base_fee_per_gas),
+        ..Default::default()
+    };
+    try_into_block(payload.clone().into(), None).expect("failed to create block")
 }
 
 fn generate_validation_request_body(
