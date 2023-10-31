@@ -1,18 +1,16 @@
-use std::ops::{Add, Mul};
 use jsonrpsee::{
     core::error::Error,
     http_client::{HttpClient, HttpClientBuilder},
     server::ServerBuilder,
 };
-use reth::primitives::{Address, Block, Bloom, Bytes, Header, B256, ForkCondition, Hardfork, U256};
+use reth::primitives::{Address, Block, U256};
 use reth::rpc::compat::engine::payload::try_into_block;
 use reth::{
     providers::test_utils::{ExtendedAccount, MockEthProvider},
     revm::primitives::FixedBytes,
 };
 use reth_block_validator::rpc::{
-    BidTrace, ExecutionPayloadValidation, ValidationApiClient, ValidationApiServer,
-    ValidationRequestBody,
+    ExecutionPayloadValidation, ValidationApiClient, ValidationApiServer, ValidationRequestBody,
 };
 use reth_block_validator::ValidationApi;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -57,17 +55,13 @@ async fn test_valid_block() {
     let fee_recipient = Address::random();
     provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
 
-    // It seems the proposers balance changes by 5 eth even without any transactions -
-    // TODO: Investigate / Understand Why
-    let proposer_payment = U256::from(5).mul(U256::from(10).pow(U256::from(18)));
-
     let validation_request_body = generate_validation_request_body(
         parent_block,
         parent_block_hash,
         fee_recipient,
         timestamp + 10,
         base_fee_per_gas,
-        Some(proposer_payment)
+        None,
     );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -85,19 +79,6 @@ async fn test_missing_proposer_payment() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
 
-    let fork = provider.chain_spec.fork(Hardfork::Paris);
-    let fork_difficulty = match fork {
-        ForkCondition::TTD {
-            total_difficulty,
-            ..
-        } => {
-            total_difficulty
-        }
-        _ => {
-            panic!("Unexpected fork condition");
-        }
-    };
-
     let base_fee_per_gas = 1_000_000_000;
     let start = SystemTime::now();
     let timestamp = start
@@ -107,10 +88,8 @@ async fn test_missing_proposer_payment() {
     println!("timestamp: {:?}", timestamp);
 
     let gas_limit = 1_000_000;
-    let mut parent_block = generate_block(gas_limit, base_fee_per_gas);
-    parent_block.header.difficulty = U256::from(fork_difficulty.add(U256::from(1)));
+    let parent_block = add_block(provider.clone(), gas_limit, base_fee_per_gas);
     let parent_block_hash = parent_block.hash_slow();
-    provider.add_block(parent_block_hash, parent_block.clone());
 
     let fee_recipient = Address::random();
     provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
@@ -123,7 +102,7 @@ async fn test_missing_proposer_payment() {
         fee_recipient,
         timestamp + 10,
         base_fee_per_gas,
-        Some(proposer_payment)
+        Some(proposer_payment),
     );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -194,8 +173,7 @@ fn generate_block(gas_limit: u64, base_fee_per_gas: u64) -> Block {
     let mut payload = ExecutionPayloadValidation::default();
     payload.gas_limit = gas_limit;
     payload.base_fee_per_gas = U256::from(base_fee_per_gas);
-    let block =
-        try_into_block(payload.clone().into(), None).expect("failed to create block");
+    let block = try_into_block(payload.clone().into(), None).expect("failed to create block");
     block
 }
 

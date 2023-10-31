@@ -169,8 +169,7 @@ fn check_proposer_balance_change(
         None => return false,
     };
 
-    fee_receiver_account_after.balance
-        >= (fee_receiver_account_before.balance + expected_payment)
+    fee_receiver_account_after.balance >= (fee_receiver_account_before.balance + expected_payment)
 }
 
 #[async_trait]
