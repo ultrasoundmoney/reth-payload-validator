@@ -57,14 +57,14 @@ async fn test_valid_block() {
     let fee_recipient = Address::random();
     provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
 
-    let proposer_payment = U256::from(10).pow(U256::from(18));
+    let proposer_payment = 10_u128.pow(18);
     let validation_request_body = generate_validation_request_body(
         parent_block,
         parent_block_hash,
         fee_recipient,
         timestamp + 10,
         base_fee_per_gas,
-        Some(proposer_payment),
+        proposer_payment,
     );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -97,7 +97,7 @@ async fn test_missing_proposer_payment() {
     let fee_recipient = Address::random();
     provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
 
-    let proposer_payment = U256::from(1);
+    let proposer_payment = 10_u128.pow(18);
 
     let validation_request_body = generate_validation_request_body(
         parent_block,
@@ -105,7 +105,7 @@ async fn test_missing_proposer_payment() {
         fee_recipient,
         timestamp + 10,
         base_fee_per_gas,
-        Some(proposer_payment),
+        proposer_payment,
     );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -187,7 +187,7 @@ fn generate_validation_request_body(
     fee_recipient: Address,
     timestamp: u64,
     base_fee_per_gas: u64,
-    proposer_fee: Option<U256>,
+    proposer_fee: u128,
 ) -> ValidationRequestBody {
     let mut validation_request_body = ValidationRequestBody::default();
     validation_request_body.execution_payload.fee_recipient = fee_recipient;
@@ -210,12 +210,13 @@ fn generate_validation_request_body(
         nonce: 0,
         gas_limit: 44386,
         to: TransactionKind::Call(fee_recipient),
-        value: 0,
+        value: proposer_fee,
         input: Bytes::default(),
         max_fee_per_gas: 0x4a817c800,
         max_priority_fee_per_gas: 0x3b9aca00,
         access_list: AccessList::default(),
     });
+    println!("transaction: {:#?}", transaction);
 
     let tx_signature_hash = transaction.signature_hash();
     let signature = sign_message(B256::from_slice(secret_key.as_ref()), tx_signature_hash).unwrap();
@@ -223,15 +224,18 @@ fn generate_validation_request_body(
     let encoded_tx = signed_tx.envelope_encoded();
     println!("encoded_tx: {}", hex::encode(&encoded_tx));
 
-    if let Some(proposer_fee) = proposer_fee {
-        validation_request_body.message.value = proposer_fee;
-    }
+    validation_request_body.execution_payload.transactions.push(encoded_tx);
+
+
+
+    validation_request_body.message.value = U256::from(proposer_fee);
 
     let block = try_into_block(
         validation_request_body.execution_payload.clone().into(),
         None,
     )
     .expect("failed to create block");
+    println!("block: {:#?}", block);
     let sealed_block = block.seal_slow();
     validation_request_body.execution_payload.block_hash = sealed_block.hash();
     validation_request_body.message.block_hash = sealed_block.hash();
