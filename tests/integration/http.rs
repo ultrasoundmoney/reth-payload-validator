@@ -3,7 +3,10 @@ use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
     server::ServerBuilder,
 };
-use reth::primitives::{Address, Block, U256};
+use reth::primitives::{
+    keccak256, public_key_to_address, sign_message, AccessList, Address, Block, Bytes, Transaction,
+    TransactionKind, TransactionSigned, TxEip1559, B256, U256,
+};
 use reth::rpc::compat::engine::payload::try_into_block;
 use reth::{
     providers::test_utils::{ExtendedAccount, MockEthProvider},
@@ -11,6 +14,7 @@ use reth::{
 };
 use reth_block_validator::rpc::{ValidationApiClient, ValidationApiServer, ValidationRequestBody};
 use reth_block_validator::ValidationApi;
+use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const VALIDATION_REQUEST_BODY: &str = include_str!("../../tests/data/single_payload.json");
@@ -53,13 +57,14 @@ async fn test_valid_block() {
     let fee_recipient = Address::random();
     provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
 
+    let proposer_payment = U256::from(10).pow(U256::from(18));
     let validation_request_body = generate_validation_request_body(
         parent_block,
         parent_block_hash,
         fee_recipient,
         timestamp + 10,
         base_fee_per_gas,
-        None,
+        Some(proposer_payment),
     );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -193,6 +198,30 @@ fn generate_validation_request_body(
     validation_request_body.execution_payload.gas_limit = parent_block.gas_limit;
     validation_request_body.message.gas_limit = parent_block.gas_limit;
     validation_request_body.message.parent_hash = parent_block_hash;
+
+    let secret_key = SecretKey::new(&mut rand::thread_rng());
+    let secp = Secp256k1::new();
+    let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+    let hash = keccak256(&public_key.serialize_uncompressed()[1..]);
+    let _address = Address::from_slice(&hash[12..]);
+
+    let transaction = Transaction::Eip1559(TxEip1559 {
+        chain_id: 1,
+        nonce: 0,
+        gas_limit: 44386,
+        to: TransactionKind::Call(fee_recipient),
+        value: 0,
+        input: Bytes::default(),
+        max_fee_per_gas: 0x4a817c800,
+        max_priority_fee_per_gas: 0x3b9aca00,
+        access_list: AccessList::default(),
+    });
+
+    let tx_signature_hash = transaction.signature_hash();
+    let signature = sign_message(B256::from_slice(secret_key.as_ref()), tx_signature_hash).unwrap();
+    let signed_tx = TransactionSigned::from_transaction_and_signature(transaction, signature);
+    let encoded_tx = signed_tx.envelope_encoded();
+    println!("encoded_tx: {}", hex::encode(&encoded_tx));
 
     if let Some(proposer_fee) = proposer_fee {
         validation_request_body.message.value = proposer_fee;
