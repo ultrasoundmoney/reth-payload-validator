@@ -24,5 +24,18 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
       - name: cargo check
-        run: cargo check --all --tests
+        run: cargo check --all --all-features --benches --tests
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --all --all-features --benches --tests
+
+      - name: cargo test
+        run: cargo test
