@@ -42,7 +42,7 @@ async fn test_valid_block() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
 
-    let base_fee_per_gas = 1_000_000_000;
+    let base_fee_per_gas = 875000000;
     let start = SystemTime::now();
     let timestamp = start
         .duration_since(UNIX_EPOCH)
@@ -63,7 +63,7 @@ async fn test_valid_block() {
         parent_block_hash,
         fee_recipient,
         timestamp + 10,
-        base_fee_per_gas,
+        765625000,
         proposer_payment,
     );
 
@@ -82,7 +82,7 @@ async fn test_missing_proposer_payment() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
 
-    let base_fee_per_gas = 1_000_000_000;
+    let base_fee_per_gas = 875000000;
     let start = SystemTime::now();
     let timestamp = start
         .duration_since(UNIX_EPOCH)
@@ -104,7 +104,7 @@ async fn test_missing_proposer_payment() {
         parent_block_hash,
         fee_recipient,
         timestamp + 10,
-        base_fee_per_gas,
+        765625000,
         proposer_payment,
     );
 
@@ -176,6 +176,7 @@ fn generate_block(gas_limit: u64, base_fee_per_gas: u64) -> Block {
     let payload = reth_block_validator::rpc::ExecutionPayloadValidation {
         gas_limit,
         base_fee_per_gas: U256::from(base_fee_per_gas),
+        block_number: 18469910,
         ..Default::default()
     };
     try_into_block(payload.clone().into(), None).expect("failed to create block")
