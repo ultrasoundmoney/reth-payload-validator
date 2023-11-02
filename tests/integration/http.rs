@@ -4,9 +4,10 @@ use jsonrpsee::{
     server::ServerBuilder,
 };
 use reth::primitives::{
-    keccak256, public_key_to_address, sign_message, AccessList, Address, Block, Bytes, Transaction,
+    keccak256, public_key_to_address, sign_message, AccessList, Address, Block, Bytes, ReceiptWithBloom, Transaction,
     TransactionKind, TransactionSigned, TxEip1559, B256, U256,
 };
+use reth::revm::{database::StateProviderDatabase, db::BundleState, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_block;
 use reth::{
     providers::test_utils::{ExtendedAccount, MockEthProvider},
@@ -65,6 +66,7 @@ async fn test_valid_block() {
         timestamp + 10,
         765625000,
         proposer_payment,
+        provider.clone(),
     );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -73,7 +75,7 @@ async fn test_valid_block() {
     )
     .await;
 
-    // TODO: Verify that this is expected behaviour (the api accepting a payload with 0 value proposer payment)
+    println!("result: {:#?}", result);
     assert!(result.is_ok());
 }
 
@@ -106,6 +108,7 @@ async fn test_missing_proposer_payment() {
         timestamp + 10,
         765625000,
         proposer_payment,
+        provider.clone(),
     );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -189,6 +192,7 @@ fn generate_validation_request_body(
     timestamp: u64,
     base_fee_per_gas: u64,
     proposer_fee: u128,
+    provider: MockEthProvider,
 ) -> ValidationRequestBody {
     let mut validation_request_body = ValidationRequestBody::default();
     validation_request_body.execution_payload.fee_recipient = fee_recipient;
@@ -204,12 +208,14 @@ fn generate_validation_request_body(
     let secp = Secp256k1::new();
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
     let hash = keccak256(&public_key.serialize_uncompressed()[1..]);
-    let _address = Address::from_slice(&hash[12..]);
+    let sender = Address::from_slice(&hash[12..]);
+    provider.add_account(sender, ExtendedAccount::new(0, U256::MAX));
 
+    let transfer_gas = 21000;
     let transaction = Transaction::Eip1559(TxEip1559 {
         chain_id: 1,
         nonce: 0,
-        gas_limit: 44386,
+        gas_limit: transfer_gas,
         to: TransactionKind::Call(fee_recipient),
         value: proposer_fee,
         input: Bytes::default(),
@@ -219,15 +225,18 @@ fn generate_validation_request_body(
     });
     println!("transaction: {:#?}", transaction);
 
+    validation_request_body.execution_payload.gas_used = transfer_gas;
+
     let tx_signature_hash = transaction.signature_hash();
     let signature = sign_message(B256::from_slice(secret_key.as_ref()), tx_signature_hash).unwrap();
     let signed_tx = TransactionSigned::from_transaction_and_signature(transaction, signature);
     let encoded_tx = signed_tx.envelope_encoded();
     println!("encoded_tx: {}", hex::encode(&encoded_tx));
 
-    validation_request_body.execution_payload.transactions.push(encoded_tx);
-
-
+    validation_request_body
+        .execution_payload
+        .transactions
+        .push(encoded_tx);
 
     validation_request_body.message.value = U256::from(proposer_fee);
 
@@ -236,7 +245,26 @@ fn generate_validation_request_body(
         None,
     )
     .expect("failed to create block");
+
+    let chain_spec = provider.clone().chain_spec;
+    let mut executor = EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(provider));
+    let (receipts, cumulative_gas_used) = executor
+        .execute_transactions(&block, U256::MAX, None)
+        .unwrap();
+    let receipts_with_bloom = receipts.iter().map(|r| r.clone().into()).collect::<Vec<ReceiptWithBloom>>();
+    let receipts_root = reth::primitives::proofs::calculate_receipt_root(&receipts_with_bloom);
+    println!("receipts_root: {}", receipts_root);
+
+    validation_request_body.message.gas_used = cumulative_gas_used;
+    validation_request_body.execution_payload.receipts_root = receipts_root;
+
+    let block = try_into_block(
+        validation_request_body.execution_payload.clone().into(),
+        None,
+    )
+    .expect("failed to create block");
     println!("block: {:#?}", block);
+
     let sealed_block = block.seal_slow();
     validation_request_body.execution_payload.block_hash = sealed_block.hash();
     validation_request_body.message.block_hash = sealed_block.hash();

@@ -71,6 +71,7 @@ where
         let unsealed_block = block.clone().unseal();
         // Note: Setting total difficulty to U256::MAX makes this incompatible with pre merge POW
         // blocks
+        // TODO: Check what exactly the "senders" argument is and if we can set it to None here
         executor
             .execute_and_verify_receipt(&unsealed_block, U256::MAX, None)
             .map_err(|e| internal_rpc_err(format!("Error executing transactions: {:}", e)))?;
