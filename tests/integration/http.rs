@@ -53,6 +53,52 @@ async fn test_valid_block() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn test_tx_nonce_too_low() {
+    let provider = MockEthProvider::default();
+    let client = get_client(Some(provider.clone())).await;
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(provider.clone(), None);
+
+    let (sender_secret_key, sender_address) = generate_random_key();
+    provider.add_account(sender_address, ExtendedAccount::new(0, U256::MAX));
+    let (_, receiver_address) = generate_random_key();
+
+    let other_transaction = sign_transaction(
+        &sender_secret_key,
+        Transaction::Eip1559(TxEip1559 {
+            chain_id: 1,
+            nonce: 0, // Invalid Tx because nonce is too low
+            gas_limit: 21000,
+            to: TransactionKind::Call(receiver_address),
+            value: 1_000_000_u128,
+            input: Bytes::default(),
+            max_fee_per_gas: 0x4a817c800,
+            max_priority_fee_per_gas: 0x3b9aca00,
+            access_list: AccessList::default(),
+        }),
+    );
+
+    // By adding additional transactions to the end we make sure that the reward is checked via the
+    // block balance change
+    validation_request_body = seal_request_body(add_transactions(
+        validation_request_body,
+        vec![other_transaction],
+        provider.clone(),
+    ));
+
+    provider.add_account(sender_address, ExtendedAccount::new(1, U256::MAX));
+
+    let result = ValidationApiClient::validate_builder_submission_v2(
+        &client,
+        validation_request_body.clone(),
+    )
+    .await;
+    let expected_error_message = "Transaction nonce is not consistent.";
+    let error_message = get_call_error_message(result.unwrap_err()).unwrap();
+    assert_eq!(error_message, expected_error_message);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn test_proposer_payment_validation_via_balance_change() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
@@ -85,17 +131,11 @@ async fn test_proposer_payment_validation_via_balance_change() {
         vec![other_transaction],
         provider,
     ));
-    println!(
-        "request_body_tx: {:#?}",
-        validation_request_body.execution_payload.transactions
-    );
-
     let result = ValidationApiClient::validate_builder_submission_v2(
         &client,
         validation_request_body.clone(),
     )
     .await;
-    println!("result: {:#?}", result);
     assert!(result.is_ok());
 }
 
