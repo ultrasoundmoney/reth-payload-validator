@@ -18,7 +18,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const VALIDATION_REQUEST_BODY: &str = include_str!("../../tests/data/single_payload.json");
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_unknown_parent_hash() {
+async fn test_example_payload() {
     let client = get_client(None).await;
     let validation_request_body: ValidationRequestBody =
         serde_json::from_str(VALIDATION_REQUEST_BODY).unwrap();
@@ -48,6 +48,31 @@ async fn test_valid_block() {
     .await;
     assert!(result.is_ok());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_incorrect_parent() {
+    let provider = MockEthProvider::default();
+    let client = get_client(Some(provider.clone())).await;
+    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider, None);
+
+    let new_parent_hash = B256::random();
+    validation_request_body.execution_payload.parent_hash = new_parent_hash;
+    validation_request_body.message.parent_hash = new_parent_hash;
+    validation_request_body = seal_request_body(validation_request_body);
+
+    let result = ValidationApiClient::validate_builder_submission_v2(
+        &client,
+        validation_request_body.clone(),
+    )
+    .await;
+    let expected_message = format!(
+        "Block parent [hash:{:?}] is not known.",
+        new_parent_hash
+    );
+    let error_message = get_call_error_message(result.unwrap_err()).unwrap();
+    assert_eq!(error_message, expected_message);
+}
+
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_tx_nonce_too_low() {
