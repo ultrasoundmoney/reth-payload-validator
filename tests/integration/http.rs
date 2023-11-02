@@ -77,6 +77,8 @@ async fn test_valid_block_proposer_payment_not_last() {
         }),
     );
 
+    // By adding additional transactions to the end we make sure that the reward is checked via the
+    // block balance change
     validation_request_body = seal_request_body(add_transactions(validation_request_body, vec![other_transaction], provider));
     println!("request_body_tx: {:#?}", validation_request_body.execution_payload.transactions);
 
