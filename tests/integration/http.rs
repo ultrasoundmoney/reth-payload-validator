@@ -4,10 +4,10 @@ use jsonrpsee::{
     server::ServerBuilder,
 };
 use reth::primitives::{
-    keccak256, public_key_to_address, sign_message, AccessList, Address, Block, Bytes,
+    keccak256,  sign_message, AccessList, Address, Block, Bytes,
     ReceiptWithBloom, Transaction, TransactionKind, TransactionSigned, TxEip1559, B256, U256,
 };
-use reth::revm::{database::StateProviderDatabase, db::BundleState, processor::EVMProcessor};
+use reth::revm::{database::StateProviderDatabase,  processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_block;
 use reth::{
     providers::test_utils::{ExtendedAccount, MockEthProvider},
@@ -42,74 +42,28 @@ async fn test_unknown_parent_hash() {
 async fn test_valid_block() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
+    let validation_request_body: ValidationRequestBody = generate_valid_request(provider);
 
-    let base_fee_per_gas = 875000000;
-    let start = SystemTime::now();
-    let timestamp = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs();
-    println!("timestamp: {:?}", timestamp);
-
-    let gas_limit = 1_000_000;
-    let parent_block = add_block(provider.clone(), gas_limit, base_fee_per_gas);
-    let parent_block_hash = parent_block.hash_slow();
-
-    let fee_recipient = Address::random();
-    provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
-
-    let proposer_payment = 10_u128.pow(18);
-    let validation_request_body = generate_validation_request_body(
-        parent_block,
-        parent_block_hash,
-        fee_recipient,
-        timestamp + 10,
-        765625000,
-        proposer_payment,
-        provider.clone(),
-    );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
         &client,
         validation_request_body.clone(),
     )
     .await;
-
-    println!("result: {:#?}", result);
     assert!(result.is_ok());
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_missing_proposer_payment() {
+async fn test_insufficient_proposer_payment() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
 
-    let base_fee_per_gas = 875000000;
-    let start = SystemTime::now();
-    let timestamp = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs();
-    println!("timestamp: {:?}", timestamp);
+    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider);
+    let original_proposer_payment = validation_request_body.message.value;
+    let new_proposer_payment = original_proposer_payment + U256::from(1);
+    validation_request_body.message.value = new_proposer_payment;
+    let validation_request_body = seal_request_body(validation_request_body);
 
-    let gas_limit = 1_000_000;
-    let parent_block = add_block(provider.clone(), gas_limit, base_fee_per_gas);
-    let parent_block_hash = parent_block.hash_slow();
-
-    let fee_recipient = Address::random();
-    provider.add_account(fee_recipient, ExtendedAccount::new(0, U256::from(0)));
-
-    let proposer_payment = 10_u128.pow(18);
-
-    let validation_request_body = generate_validation_request_body(
-        parent_block,
-        parent_block_hash,
-        fee_recipient,
-        timestamp + 10,
-        765625000,
-        proposer_payment,
-        provider.clone(),
-    );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
         &client,
@@ -117,26 +71,22 @@ async fn test_missing_proposer_payment() {
     )
     .await;
 
-    let expected_message = "No receipts in block to verify proposer payment";
+    let expected_error_message = format!("Proposer payment tx value {:} does not match expected payment {:}", original_proposer_payment, new_proposer_payment);
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
-    assert_eq!(error_message, expected_message);
+    assert_eq!(error_message, expected_error_message);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_wrong_hash() {
-    let client = get_client(None).await;
+    let provider = MockEthProvider::default();
+    let client = get_client(Some(provider.clone())).await;
 
-    let validation_request_body: ValidationRequestBody =
-        serde_json::from_str(VALIDATION_REQUEST_BODY).unwrap();
-    let old_timestamp = format!("{:}", validation_request_body.execution_payload.timestamp);
-    let new_timestamp = "1234567";
+    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider);
+    validation_request_body.execution_payload.timestamp = validation_request_body.execution_payload.timestamp + 1;
 
-    let validation_request_body_wrong_timestamp: ValidationRequestBody =
-        serde_json::from_str(&VALIDATION_REQUEST_BODY.replace(&old_timestamp, new_timestamp))
-            .unwrap();
     let result = ValidationApiClient::validate_builder_submission_v2(
         &client,
-        validation_request_body_wrong_timestamp,
+        validation_request_body,
     )
     .await;
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
@@ -175,6 +125,53 @@ fn add_block(provider: MockEthProvider, gas_limit: u64, base_fee_per_gas: u64) -
     block
 }
 
+fn generate_valid_request(provider: MockEthProvider) -> ValidationRequestBody {
+    let base_fee_per_gas = 875000000;
+    let start = SystemTime::now();
+    let timestamp = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs();
+
+    let gas_limit = 1_000_000;
+    let parent_block = add_block(provider.clone(), gas_limit, base_fee_per_gas);
+    let parent_block_hash = parent_block.hash_slow();
+
+    let fee_recipient = Address::random();
+
+    let proposer_payment = 10_u128.pow(18);
+
+    let (sender_secret_key, sender_address) = generate_random_key();
+    provider.add_account(sender_address, ExtendedAccount::new(0, U256::MAX));
+
+    let proposer_payment_transaction = sign_transaction(
+        &sender_secret_key,
+        Transaction::Eip1559(TxEip1559 {
+        chain_id: 1,
+        nonce: 0,
+        gas_limit: 21000,
+        to: TransactionKind::Call(fee_recipient),
+        value: proposer_payment,
+        input: Bytes::default(),
+        max_fee_per_gas: 0x4a817c800,
+        max_priority_fee_per_gas: 0x3b9aca00,
+        access_list: AccessList::default(),
+    }));
+
+
+    generate_validation_request_body(
+        parent_block,
+        parent_block_hash,
+        fee_recipient,
+        timestamp + 10,
+        765625000,
+        proposer_payment,
+        provider.clone(),
+        vec![proposer_payment_transaction],
+    )
+}
+
+
 fn generate_block(gas_limit: u64, base_fee_per_gas: u64) -> Block {
     let payload = reth_block_validator::rpc::ExecutionPayloadValidation {
         gas_limit,
@@ -193,6 +190,7 @@ fn generate_validation_request_body(
     base_fee_per_gas: u64,
     proposer_fee: u128,
     provider: MockEthProvider,
+    transactions: Vec<TransactionSigned>,
 ) -> ValidationRequestBody {
     let mut validation_request_body = ValidationRequestBody::default();
     validation_request_body.execution_payload.fee_recipient = fee_recipient;
@@ -204,39 +202,11 @@ fn generate_validation_request_body(
     validation_request_body.message.gas_limit = parent_block.gas_limit;
     validation_request_body.message.parent_hash = parent_block_hash;
 
-    let secret_key = SecretKey::new(&mut rand::thread_rng());
-    let secp = Secp256k1::new();
-    let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-    let hash = keccak256(&public_key.serialize_uncompressed()[1..]);
-    let sender = Address::from_slice(&hash[12..]);
-    provider.add_account(sender, ExtendedAccount::new(0, U256::MAX));
 
-    let transfer_gas = 21000;
-    let transaction = Transaction::Eip1559(TxEip1559 {
-        chain_id: 1,
-        nonce: 0,
-        gas_limit: transfer_gas,
-        to: TransactionKind::Call(fee_recipient),
-        value: proposer_fee,
-        input: Bytes::default(),
-        max_fee_per_gas: 0x4a817c800,
-        max_priority_fee_per_gas: 0x3b9aca00,
-        access_list: AccessList::default(),
-    });
-    println!("transaction: {:#?}", transaction);
-
-    validation_request_body.execution_payload.gas_used = transfer_gas;
-
-    let tx_signature_hash = transaction.signature_hash();
-    let signature = sign_message(B256::from_slice(secret_key.as_ref()), tx_signature_hash).unwrap();
-    let signed_tx = TransactionSigned::from_transaction_and_signature(transaction, signature);
-    let encoded_tx = signed_tx.envelope_encoded();
-    println!("encoded_tx: {}", hex::encode(&encoded_tx));
 
     validation_request_body
         .execution_payload
-        .transactions
-        .push(encoded_tx);
+        .transactions = transactions.iter().map(|tx| tx.envelope_encoded()).collect();
 
     validation_request_body.message.value = U256::from(proposer_fee);
 
@@ -248,22 +218,24 @@ fn generate_validation_request_body(
 
     let (receipts_root, cumulative_gas_used) = calculate_receipts_root(&block, provider.clone());
 
+    validation_request_body.execution_payload.gas_used = cumulative_gas_used;
     validation_request_body.message.gas_used = cumulative_gas_used;
     validation_request_body.execution_payload.receipts_root = receipts_root;
 
+    seal_request_body(validation_request_body)
+}
+
+fn seal_request_body(mut validation_request_body: ValidationRequestBody) -> ValidationRequestBody {
     let block = try_into_block(
         validation_request_body.execution_payload.clone().into(),
         None,
     )
     .expect("failed to create block");
-    println!("block: {:#?}", block);
-
     let sealed_block = block.seal_slow();
     validation_request_body.execution_payload.block_hash = sealed_block.hash();
     validation_request_body.message.block_hash = sealed_block.hash();
     validation_request_body
 }
-
 fn calculate_receipts_root(block: &Block, provider: MockEthProvider) -> (B256, u64) {
     let chain_spec = provider.clone().chain_spec;
     let mut executor = EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(provider));
@@ -275,6 +247,23 @@ fn calculate_receipts_root(block: &Block, provider: MockEthProvider) -> (B256, u
         .map(|r| r.clone().into())
         .collect::<Vec<ReceiptWithBloom>>();
     let receipts_root = reth::primitives::proofs::calculate_receipt_root(&receipts_with_bloom);
-    println!("receipts_root: {}", receipts_root);
     (receipts_root, cumulative_gas_used)
+}
+
+fn generate_random_key() -> (SecretKey, Address) {
+    let secret_key = SecretKey::new(&mut rand::thread_rng());
+    let secp = Secp256k1::new();
+    let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+    let hash = keccak256(&public_key.serialize_uncompressed()[1..]);
+    let address = Address::from_slice(&hash[12..]);
+    (secret_key, address)
+}
+
+fn sign_transaction(
+    secret_key: &SecretKey,
+    transaction: Transaction,
+) -> TransactionSigned {
+    let tx_signature_hash = transaction.signature_hash();
+    let signature = sign_message(B256::from_slice(secret_key.as_ref()), tx_signature_hash).unwrap();
+    TransactionSigned::from_transaction_and_signature(transaction, signature)
 }
