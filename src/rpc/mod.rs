@@ -2,7 +2,10 @@ use async_trait::async_trait;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use reth::consensus_common::validation::full_validation;
-use reth::primitives::{Address, ChainSpec, Receipts, SealedBlock, TransactionSigned, U256, revm_primitives::AccountInfo};
+use reth::primitives::{
+    revm_primitives::AccountInfo, Address, ChainSpec, Receipts, SealedBlock, TransactionSigned,
+    U256,
+};
 use reth::providers::{
     AccountReader, BlockExecutor, BlockReaderIdExt, ChainSpecProvider, HeaderProvider,
     StateProviderFactory, WithdrawalsProvider,

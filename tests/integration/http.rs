@@ -56,7 +56,8 @@ async fn test_valid_block() {
 async fn test_proposer_payment_validation_via_balance_change() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider.clone(), None);
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(provider.clone(), None);
 
     let (sender_secret_key, sender_address) = generate_random_key();
     provider.add_account(sender_address, ExtendedAccount::new(0, U256::MAX));
@@ -79,8 +80,15 @@ async fn test_proposer_payment_validation_via_balance_change() {
 
     // By adding additional transactions to the end we make sure that the reward is checked via the
     // block balance change
-    validation_request_body = seal_request_body(add_transactions(validation_request_body, vec![other_transaction], provider));
-    println!("request_body_tx: {:#?}", validation_request_body.execution_payload.transactions);
+    validation_request_body = seal_request_body(add_transactions(
+        validation_request_body,
+        vec![other_transaction],
+        provider,
+    ));
+    println!(
+        "request_body_tx: {:#?}",
+        validation_request_body.execution_payload.transactions
+    );
 
     let result = ValidationApiClient::validate_builder_submission_v2(
         &client,
@@ -96,7 +104,14 @@ async fn test_proposer_spent_in_same_block() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
     let (recipient_private_key, recipient_address) = generate_random_key();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider.clone(), Some(recipient_address));
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(provider.clone(), Some(recipient_address));
+    // Note: This is not necessary for this test but added here to make it otherwise identical to
+    // the passing case with the reordered transactions
+    provider.add_account(
+        recipient_address,
+        ExtendedAccount::new(0, validation_request_body.message.value),
+    );
 
     let (sender_secret_key, sender_address) = generate_random_key();
     provider.add_account(sender_address, ExtendedAccount::new(0, U256::MAX));
@@ -133,9 +148,11 @@ async fn test_proposer_spent_in_same_block() {
         }),
     );
 
-    // By adding additional transactions to the end we make sure that the reward is checked via the
-    // block balance change
-    validation_request_body = seal_request_body(add_transactions(validation_request_body, vec![spend_proposer_payment_tx, other_transaction], provider));
+    validation_request_body = seal_request_body(add_transactions(
+        validation_request_body,
+        vec![spend_proposer_payment_tx, other_transaction],
+        provider,
+    ));
 
     let result = ValidationApiClient::validate_builder_submission_v2(
         &client,
@@ -148,6 +165,73 @@ async fn test_proposer_spent_in_same_block() {
     assert!(error_message.contains("does not match fee recipient"));
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
+    let provider = MockEthProvider::default();
+    let client = get_client(Some(provider.clone())).await;
+    let (recipient_private_key, recipient_address) = generate_random_key();
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(provider.clone(), Some(recipient_address));
+    provider.add_account(
+        recipient_address,
+        ExtendedAccount::new(0, validation_request_body.message.value),
+    );
+
+    let (sender_secret_key, sender_address) = generate_random_key();
+    provider.add_account(sender_address, ExtendedAccount::new(0, U256::MAX));
+    let (_, receiver_address) = generate_random_key();
+
+    let amount_to_send = validation_request_body.message.value / U256::from(2);
+    let spend_proposer_payment_tx = sign_transaction(
+        &recipient_private_key,
+        Transaction::Eip1559(TxEip1559 {
+            chain_id: 1,
+            nonce: 0,
+            gas_limit: 21000,
+            to: TransactionKind::Call(receiver_address),
+            value: amount_to_send.try_into().unwrap(),
+            input: Bytes::default(),
+            max_fee_per_gas: 0x4a817c800,
+            max_priority_fee_per_gas: 0x3b9aca00,
+            access_list: AccessList::default(),
+        }),
+    );
+
+    let other_transaction = sign_transaction(
+        &sender_secret_key,
+        Transaction::Eip1559(TxEip1559 {
+            chain_id: 1,
+            nonce: 0,
+            gas_limit: 21000,
+            to: TransactionKind::Call(receiver_address),
+            value: 1_000_000_u128,
+            input: Bytes::default(),
+            max_fee_per_gas: 0x4a817c800,
+            max_priority_fee_per_gas: 0x3b9aca00,
+            access_list: AccessList::default(),
+        }),
+    );
+
+    validation_request_body = add_transactions(
+        validation_request_body,
+        vec![spend_proposer_payment_tx, other_transaction],
+        provider,
+    );
+    // Note that this reordering makes the payload verifiable by putting the proposer paymnent last
+    validation_request_body.execution_payload.transactions = vec![
+        validation_request_body.execution_payload.transactions[1].clone(),
+        validation_request_body.execution_payload.transactions[2].clone(),
+        validation_request_body.execution_payload.transactions[0].clone(),
+    ];
+    validation_request_body = seal_request_body(validation_request_body);
+
+    let result = ValidationApiClient::validate_builder_submission_v2(
+        &client,
+        validation_request_body.clone(),
+    )
+    .await;
+    assert!(result.is_ok());
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_insufficient_proposer_payment() {
@@ -221,7 +305,10 @@ fn add_block(provider: MockEthProvider, gas_limit: u64, base_fee_per_gas: u64) -
     block
 }
 
-fn generate_valid_request(provider: MockEthProvider, fee_recipient: Option<Address>) -> ValidationRequestBody {
+fn generate_valid_request(
+    provider: MockEthProvider,
+    fee_recipient: Option<Address>,
+) -> ValidationRequestBody {
     let base_fee_per_gas = 875000000;
     let start = SystemTime::now();
     let timestamp = start
