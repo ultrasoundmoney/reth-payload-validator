@@ -7,12 +7,9 @@ use reth::primitives::{
     keccak256, sign_message, AccessList, Address, Block, Bytes, ReceiptWithBloom, Transaction,
     TransactionKind, TransactionSigned, TxEip1559, B256, U256,
 };
+use reth::providers::test_utils::{ExtendedAccount, MockEthProvider};
 use reth::revm::{database::StateProviderDatabase, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_block;
-use reth::{
-    providers::test_utils::{ExtendedAccount, MockEthProvider},
-    revm::primitives::FixedBytes,
-};
 use reth_block_validator::rpc::{ValidationApiClient, ValidationApiServer, ValidationRequestBody};
 use reth_block_validator::ValidationApi;
 use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
@@ -304,8 +301,7 @@ async fn test_wrong_hash() {
     let client = get_client(Some(provider.clone())).await;
 
     let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider, None);
-    validation_request_body.execution_payload.timestamp =
-        validation_request_body.execution_payload.timestamp + 1;
+    validation_request_body.execution_payload.timestamp += 1;
 
     let result =
         ValidationApiClient::validate_builder_submission_v2(&client, validation_request_body).await;
@@ -358,7 +354,6 @@ fn generate_valid_request(
 
     let gas_limit = 1_000_000;
     let parent_block = add_block(provider.clone(), gas_limit, base_fee_per_gas);
-    let parent_block_hash = parent_block.hash_slow();
 
     let fee_recipient = fee_recipient.unwrap_or(Address::random());
 
@@ -384,7 +379,6 @@ fn generate_valid_request(
 
     generate_validation_request_body(
         parent_block,
-        parent_block_hash,
         fee_recipient,
         timestamp + 10,
         765625000,
@@ -406,7 +400,6 @@ fn generate_block(gas_limit: u64, base_fee_per_gas: u64) -> Block {
 
 fn generate_validation_request_body(
     parent_block: Block,
-    parent_block_hash: FixedBytes<32>,
     fee_recipient: Address,
     timestamp: u64,
     base_fee_per_gas: u64,
@@ -414,6 +407,7 @@ fn generate_validation_request_body(
     provider: MockEthProvider,
     transactions: Vec<TransactionSigned>,
 ) -> ValidationRequestBody {
+    let parent_block_hash = parent_block.hash_slow();
     let mut validation_request_body = ValidationRequestBody::default();
     validation_request_body.execution_payload.fee_recipient = fee_recipient;
     validation_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
