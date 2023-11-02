@@ -4,8 +4,8 @@ use jsonrpsee::{
     server::ServerBuilder,
 };
 use reth::primitives::{
-    keccak256, public_key_to_address, sign_message, AccessList, Address, Block, Bytes, ReceiptWithBloom, Transaction,
-    TransactionKind, TransactionSigned, TxEip1559, B256, U256,
+    keccak256, public_key_to_address, sign_message, AccessList, Address, Block, Bytes,
+    ReceiptWithBloom, Transaction, TransactionKind, TransactionSigned, TxEip1559, B256, U256,
 };
 use reth::revm::{database::StateProviderDatabase, db::BundleState, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_block;
@@ -246,14 +246,7 @@ fn generate_validation_request_body(
     )
     .expect("failed to create block");
 
-    let chain_spec = provider.clone().chain_spec;
-    let mut executor = EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(provider));
-    let (receipts, cumulative_gas_used) = executor
-        .execute_transactions(&block, U256::MAX, None)
-        .unwrap();
-    let receipts_with_bloom = receipts.iter().map(|r| r.clone().into()).collect::<Vec<ReceiptWithBloom>>();
-    let receipts_root = reth::primitives::proofs::calculate_receipt_root(&receipts_with_bloom);
-    println!("receipts_root: {}", receipts_root);
+    let (receipts_root, cumulative_gas_used) = calculate_receipts_root(&block, provider.clone());
 
     validation_request_body.message.gas_used = cumulative_gas_used;
     validation_request_body.execution_payload.receipts_root = receipts_root;
@@ -269,4 +262,19 @@ fn generate_validation_request_body(
     validation_request_body.execution_payload.block_hash = sealed_block.hash();
     validation_request_body.message.block_hash = sealed_block.hash();
     validation_request_body
+}
+
+fn calculate_receipts_root(block: &Block, provider: MockEthProvider) -> (B256, u64) {
+    let chain_spec = provider.clone().chain_spec;
+    let mut executor = EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(provider));
+    let (receipts, cumulative_gas_used) = executor
+        .execute_transactions(block, U256::MAX, None)
+        .unwrap();
+    let receipts_with_bloom = receipts
+        .iter()
+        .map(|r| r.clone().into())
+        .collect::<Vec<ReceiptWithBloom>>();
+    let receipts_root = reth::primitives::proofs::calculate_receipt_root(&receipts_with_bloom);
+    println!("receipts_root: {}", receipts_root);
+    (receipts_root, cumulative_gas_used)
 }
