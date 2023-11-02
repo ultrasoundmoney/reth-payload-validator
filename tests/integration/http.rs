@@ -42,7 +42,7 @@ async fn test_unknown_parent_hash() {
 async fn test_valid_block() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
-    let validation_request_body: ValidationRequestBody = generate_valid_request(provider);
+    let validation_request_body: ValidationRequestBody = generate_valid_request(provider, None);
 
     let result = ValidationApiClient::validate_builder_submission_v2(
         &client,
@@ -53,10 +53,10 @@ async fn test_valid_block() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_valid_block_proposer_payment_not_last() {
+async fn test_proposer_payment_validation_via_balance_change() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider.clone());
+    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider.clone(), None);
 
     let (sender_secret_key, sender_address) = generate_random_key();
     provider.add_account(sender_address, ExtendedAccount::new(0, U256::MAX));
@@ -92,13 +92,71 @@ async fn test_valid_block_proposer_payment_not_last() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn test_proposer_spent_in_same_block() {
+    let provider = MockEthProvider::default();
+    let client = get_client(Some(provider.clone())).await;
+    let (recipient_private_key, recipient_address) = generate_random_key();
+    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider.clone(), Some(recipient_address));
+
+    let (sender_secret_key, sender_address) = generate_random_key();
+    provider.add_account(sender_address, ExtendedAccount::new(0, U256::MAX));
+    let (_, receiver_address) = generate_random_key();
+
+    let amount_to_send = validation_request_body.message.value / U256::from(2);
+    let spend_proposer_payment_tx = sign_transaction(
+        &recipient_private_key,
+        Transaction::Eip1559(TxEip1559 {
+            chain_id: 1,
+            nonce: 0,
+            gas_limit: 21000,
+            to: TransactionKind::Call(receiver_address),
+            value: amount_to_send.try_into().unwrap(),
+            input: Bytes::default(),
+            max_fee_per_gas: 0x4a817c800,
+            max_priority_fee_per_gas: 0x3b9aca00,
+            access_list: AccessList::default(),
+        }),
+    );
+
+    let other_transaction = sign_transaction(
+        &sender_secret_key,
+        Transaction::Eip1559(TxEip1559 {
+            chain_id: 1,
+            nonce: 0,
+            gas_limit: 21000,
+            to: TransactionKind::Call(receiver_address),
+            value: 1_000_000_u128,
+            input: Bytes::default(),
+            max_fee_per_gas: 0x4a817c800,
+            max_priority_fee_per_gas: 0x3b9aca00,
+            access_list: AccessList::default(),
+        }),
+    );
+
+    // By adding additional transactions to the end we make sure that the reward is checked via the
+    // block balance change
+    validation_request_body = seal_request_body(add_transactions(validation_request_body, vec![spend_proposer_payment_tx, other_transaction], provider));
+
+    let result = ValidationApiClient::validate_builder_submission_v2(
+        &client,
+        validation_request_body.clone(),
+    )
+    .await;
+    let error_message = get_call_error_message(result.unwrap_err()).unwrap();
+    // Because the check based on the balance difference failed it will revert to checking the last
+    // transaction and find that it is not going to the fee recipient
+    assert!(error_message.contains("does not match fee recipient"));
+}
+
+
+#[tokio::test(flavor = "multi_thread")]
 async fn test_insufficient_proposer_payment() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
 
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider);
+    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider, None);
     let original_proposer_payment = validation_request_body.message.value;
-    let new_proposer_payment = original_proposer_payment + U256::from(1);
+    let new_proposer_payment = original_proposer_payment + original_proposer_payment;
     validation_request_body.message.value = new_proposer_payment;
     let validation_request_body = seal_request_body(validation_request_body);
 
@@ -121,7 +179,7 @@ async fn test_wrong_hash() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
 
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider);
+    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider, None);
     validation_request_body.execution_payload.timestamp =
         validation_request_body.execution_payload.timestamp + 1;
 
@@ -163,7 +221,7 @@ fn add_block(provider: MockEthProvider, gas_limit: u64, base_fee_per_gas: u64) -
     block
 }
 
-fn generate_valid_request(provider: MockEthProvider) -> ValidationRequestBody {
+fn generate_valid_request(provider: MockEthProvider, fee_recipient: Option<Address>) -> ValidationRequestBody {
     let base_fee_per_gas = 875000000;
     let start = SystemTime::now();
     let timestamp = start
@@ -175,7 +233,7 @@ fn generate_valid_request(provider: MockEthProvider) -> ValidationRequestBody {
     let parent_block = add_block(provider.clone(), gas_limit, base_fee_per_gas);
     let parent_block_hash = parent_block.hash_slow();
 
-    let fee_recipient = Address::random();
+    let fee_recipient = fee_recipient.unwrap_or(Address::random());
 
     let proposer_payment = 10_u128.pow(18);
 
