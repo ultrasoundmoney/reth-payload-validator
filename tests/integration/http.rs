@@ -7,7 +7,10 @@ use reth::primitives::{
     keccak256, sign_message, AccessList, Address, Block, Bytes, ReceiptWithBloom, Transaction,
     TransactionKind, TransactionSigned, TxEip1559, B256, U256,
 };
-use reth::providers::test_utils::{ExtendedAccount, MockEthProvider};
+use reth::providers::{
+    test_utils::{ExtendedAccount, MockEthProvider},
+    HeaderProvider,
+};
 use reth::revm::{database::StateProviderDatabase, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_block;
 use reth_block_validator::rpc::{ValidationApiClient, ValidationApiServer, ValidationRequestBody};
@@ -50,6 +53,60 @@ async fn test_valid_block() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn test_block_number_already_known() {
+    let provider = MockEthProvider::default();
+    let client = get_client(Some(provider.clone())).await;
+    let validation_request_body: ValidationRequestBody =
+        generate_valid_request(provider.clone(), None);
+    let block = try_into_block(
+        validation_request_body.execution_payload.clone().into(),
+        None,
+    )
+    .expect("failed to create block");
+    provider.add_block(B256::random(), block);
+    // Double check that the header for this number is known
+    assert!(provider
+        .header_by_number(validation_request_body.execution_payload.block_number)
+        .unwrap()
+        .is_some());
+
+    let result = ValidationApiClient::validate_builder_submission_v2(
+        &client,
+        validation_request_body.clone(),
+    )
+    .await;
+    // TODO: Verify that this is expected behaviour (if not check if specific to mock provider)
+    assert!(result.is_ok());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_block_hash_already_known() {
+    let provider = MockEthProvider::default();
+    let client = get_client(Some(provider.clone())).await;
+    let validation_request_body: ValidationRequestBody =
+        generate_valid_request(provider.clone(), None);
+    let block = try_into_block(
+        validation_request_body.execution_payload.clone().into(),
+        None,
+    )
+    .expect("failed to create block");
+    provider.add_block(validation_request_body.execution_payload.block_hash, block);
+
+    let result = ValidationApiClient::validate_builder_submission_v2(
+        &client,
+        validation_request_body.clone(),
+    )
+    .await;
+    let expected_message = format!(
+        "Block with [hash:{:?},number: {:}] is already known.",
+        validation_request_body.execution_payload.block_hash,
+        validation_request_body.execution_payload.block_number
+    );
+    let error_message = get_call_error_message(result.unwrap_err()).unwrap();
+    assert_eq!(error_message, expected_message);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn test_incorrect_parent() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
@@ -65,14 +122,10 @@ async fn test_incorrect_parent() {
         validation_request_body.clone(),
     )
     .await;
-    let expected_message = format!(
-        "Block parent [hash:{:?}] is not known.",
-        new_parent_hash
-    );
+    let expected_message = format!("Block parent [hash:{:?}] is not known.", new_parent_hash);
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     assert_eq!(error_message, expected_message);
 }
-
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_tx_nonce_too_low() {
