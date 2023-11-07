@@ -53,6 +53,28 @@ async fn test_valid_block() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn test_block_number_too_high() {
+    let provider = MockEthProvider::default();
+    let client = get_client(Some(provider.clone())).await;
+    let mut validation_request_body: ValidationRequestBody = generate_valid_request(provider, None);
+    validation_request_body.execution_payload.block_number += 1;
+    validation_request_body = seal_request_body(validation_request_body);
+
+    let result = ValidationApiClient::validate_builder_submission_v2(
+        &client,
+        validation_request_body.clone(),
+    )
+    .await;
+    let expected_message = format!(
+        "Block number {:} does not match parent block number {:}",
+        validation_request_body.execution_payload.block_number,
+        validation_request_body.execution_payload.block_number - 2
+    );
+    let error_message = get_call_error_message(result.unwrap_err()).unwrap();
+    assert_eq!(error_message, expected_message);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn test_block_number_already_known() {
     let provider = MockEthProvider::default();
     let client = get_client(Some(provider.clone())).await;
