@@ -3,6 +3,10 @@ WORKDIR /app
 
 # Build deps. We replace our main.rs with a dummy.rs to avoid rebuilding the
 # main executable, creating a cached layer for the dependencies.
+
+# Reth requires libclang-dev and pkg-config to build.
+RUN apt-get update && apt-get -y upgrade && apt-get install -y libclang-dev pkg-config
+
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src/
 RUN echo "fn main() {}" > dummy.rs
