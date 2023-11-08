@@ -233,8 +233,8 @@ async fn test_proposer_payment_validation_via_balance_change() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_proposer_spent_in_same_block() {
     let provider_factory = get_provider_factory();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
     let (recipient_private_key, recipient_address) = generate_random_key();
+    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, Some(recipient_address));
     // Note: This is not necessary for this test but added here to make it otherwise identical to
     // the passing case with the reordered transactions
     add_account(&provider_factory, 
@@ -289,6 +289,7 @@ async fn test_proposer_spent_in_same_block() {
         validation_request_body.clone(),
     )
     .await;
+    println!("result {:?}", result);
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     // Because the check based on the balance difference failed it will revert to checking the last
     // transaction and find that it is not going to the fee recipient
@@ -298,8 +299,8 @@ async fn test_proposer_spent_in_same_block() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
     let provider_factory = get_provider_factory();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
     let (recipient_private_key, recipient_address) = generate_random_key();
+    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, Some(recipient_address));
     add_account(&provider_factory, 
         recipient_address,
         Account{ nonce: 0, balance: validation_request_body.message.value, bytecode_hash: None }
