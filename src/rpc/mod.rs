@@ -148,7 +148,7 @@ fn check_proposer_payment_in_last_transaction(
         )));
     }
 
-    if U256::from(proposer_payment_tx.value()) != *expected_payment {
+    if proposer_payment_tx.value() != *expected_payment {
         return Err(internal_rpc_err(format!(
             "Proposer payment tx value {} does not match expected payment {}",
             proposer_payment_tx.value(),
