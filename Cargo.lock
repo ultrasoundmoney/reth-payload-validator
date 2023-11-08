@@ -4527,24 +4527,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reth-block-validator"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "clap",
- "derivative",
- "eyre",
- "hex",
- "jsonrpsee",
- "reth",
- "secp256k1 0.28.0",
- "serde",
- "serde_json",
- "serde_with",
- "tokio",
-]
-
-[[package]]
 name = "reth-blockchain-tree"
 version = "0.1.0-alpha.10"
 source = "git+https://github.com/paradigmxyz/reth#fd697d9d3f1574f3bfd1fba8c45acddca4461731"
@@ -4982,6 +4964,24 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+]
+
+[[package]]
+name = "reth-payload-validator"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "clap",
+ "derivative",
+ "eyre",
+ "hex",
+ "jsonrpsee",
+ "reth",
+ "secp256k1 0.28.0",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "tokio",
 ]
 
 [[package]]

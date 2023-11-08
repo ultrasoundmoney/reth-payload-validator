@@ -14,7 +14,7 @@
 //! ```
 use clap::Parser;
 use reth::cli::Cli;
-use reth_block_validator::ValidationCliExt;
+use reth_payload_validator::ValidationCliExt;
 
 fn main() {
     Cli::<ValidationCliExt>::parse().run().unwrap();

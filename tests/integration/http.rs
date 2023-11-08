@@ -13,8 +13,10 @@ use reth::providers::{
 };
 use reth::revm::{database::StateProviderDatabase, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_block;
-use reth_block_validator::rpc::{ValidationApiClient, ValidationApiServer, ValidationRequestBody};
-use reth_block_validator::ValidationApi;
+use reth_payload_validator::rpc::{
+    ValidationApiClient, ValidationApiServer, ValidationRequestBody,
+};
+use reth_payload_validator::ValidationApi;
 use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -489,7 +491,7 @@ fn generate_valid_request(
 }
 
 fn generate_block(gas_limit: u64, base_fee_per_gas: u64) -> Block {
-    let payload = reth_block_validator::rpc::ExecutionPayloadValidation {
+    let payload = reth_payload_validator::rpc::ExecutionPayloadValidation {
         gas_limit,
         base_fee_per_gas: U256::from(base_fee_per_gas),
         block_number: 18469910,

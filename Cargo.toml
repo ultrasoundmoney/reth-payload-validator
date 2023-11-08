@@ -1,12 +1,12 @@
 [package]
-name = "reth-block-validator"
+name = "reth-payload-validator"
 version = "0.1.0"
 edition = "2021"
-default-run = "reth-block-validator"
+default-run = "reth-payload-validator"
 
 # Here to support the Docker build.
 [[bin]]
-name = "reth-block-validator"
+name = "reth-payload-validator"
 path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
