@@ -1,5 +1,5 @@
 use derivative::Derivative;
-use reth::primitives::{Address, Bloom, Bytes, B256, U256, U64};
+use reth::primitives::{Address, Bloom, Bytes, B256, U256};
 use reth::rpc::types::{ExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2, Withdrawal};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
@@ -89,10 +89,10 @@ impl From<ExecutionPayloadValidation> for ExecutionPayload {
                 receipts_root: val.receipts_root,
                 logs_bloom: val.logs_bloom,
                 prev_randao: val.prev_randao,
-                block_number: U64::from(val.block_number),
-                gas_limit: U64::from(val.gas_limit),
-                gas_used: U64::from(val.gas_used),
-                timestamp: U64::from(val.timestamp),
+                block_number: val.block_number,
+                gas_limit: val.gas_limit,
+                gas_used: val.gas_used,
+                timestamp: val.timestamp,
                 extra_data: val.extra_data,
                 base_fee_per_gas: val.base_fee_per_gas,
                 block_hash: val.block_hash,
