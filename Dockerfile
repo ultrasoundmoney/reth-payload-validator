@@ -17,5 +17,5 @@ RUN cargo build --release
 # Build runtime image.
 FROM gcr.io/distroless/cc-debian12 AS runtime
 WORKDIR /app
-COPY --from=builder /app/target/release/reth-payload-validator /app/archive-submissions
+COPY --from=builder /app/target/release/reth-payload-validator /app/reth-payload-validator
 ENTRYPOINT ["/app/reth-payload-validator"]
