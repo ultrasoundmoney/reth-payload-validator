@@ -48,6 +48,23 @@ async fn test_valid_block() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn test_invalid_state_root() {
+    let provider_factory = get_provider_factory();
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
+    let client = get_client(provider_factory).await;
+    validation_request_body.execution_payload.state_root = B256::default();
+    validation_request_body = seal_request_body(validation_request_body);
+
+    let result = ValidationApiClient::validate_builder_submission_v2(
+        &client,
+        validation_request_body.clone(),
+    )
+    .await;
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn test_block_number_too_high() {
     let provider_factory = get_provider_factory();
     let mut validation_request_body: ValidationRequestBody =
