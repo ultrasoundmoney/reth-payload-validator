@@ -34,7 +34,7 @@ async fn test_example_payload() {
     )
     .await;
     let expected_message = format!(
-        "Block parent [hash:{:?}] is not known.",
+        "block parent [hash={:?}] is not known",
         validation_request_body.execution_payload.parent_hash
     );
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
@@ -69,7 +69,7 @@ async fn test_block_number_too_high() {
     )
     .await;
     let expected_message = format!(
-        "Block number {:} does not match parent block number {:}",
+        "block number {:} does not match parent block number {:}",
         validation_request_body.execution_payload.block_number,
         validation_request_body.execution_payload.block_number - 2
     );
@@ -123,7 +123,7 @@ async fn test_block_hash_already_known() {
     )
     .await;
     let expected_message = format!(
-        "Block with [hash:{:?},number: {:}] is already known.",
+        "block with [hash={:?}, number={:}] is already known",
         validation_request_body.execution_payload.block_hash,
         validation_request_body.execution_payload.block_number
     );
@@ -147,7 +147,7 @@ async fn test_incorrect_parent() {
         validation_request_body.clone(),
     )
     .await;
-    let expected_message = format!("Block parent [hash:{:?}] is not known.", new_parent_hash);
+    let expected_message = format!("block parent [hash={:?}] is not known", new_parent_hash);
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     assert_eq!(error_message, expected_message);
 }
@@ -193,7 +193,7 @@ async fn test_tx_nonce_too_low() {
         validation_request_body.clone(),
     )
     .await;
-    let expected_error_message = "Transaction nonce is not consistent.";
+    let expected_error_message = "transaction nonce is not consistent";
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     assert_eq!(error_message, expected_error_message);
 }
@@ -409,7 +409,7 @@ async fn test_wrong_hash() {
     let result =
         ValidationApiClient::validate_builder_submission_v2(&client, validation_request_body).await;
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
-    assert!(error_message.contains("blockhash mismatch"));
+    assert!(error_message.contains("block hash mismatch"));
 }
 
 async fn get_client(provider: Option<MockEthProvider>) -> HttpClient {
