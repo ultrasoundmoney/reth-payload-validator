@@ -668,7 +668,7 @@ fn calculate_receipts_root(
     let new_block = Block {
         header: Header {
             gas_used: cumulative_gas_used,
-            receipts_root: receipts_root.clone(),
+            receipts_root,
             ..block.header.clone()
         },
         ..block.clone()
