@@ -5,10 +5,6 @@ Reth rpc extension to add an endpoint for validation of builder submissions as r
 Run extended reth full node with the added rpc endpoint with:
 `RUST_LOG=info cargo run -- node --full --metrics 127.0.0.1:9001 --http --enable-ext`
 
-## Test it
-While there are no automated tests yet you can execute a manual test using the provided testdata (requires `curl` and `jq`):
-`./test/shoot_single_payload.sh localhost:8545 test/data/single_payload.json`
-
 ## Further Reading
 - [Guide to custom api development based on reth](https://www.libevm.com/2023/09/01/reth-custom-api/)
 - [Official example for adding rpc namespace](https://github.com/paradigmxyz/reth/blob/main/examples/additional-rpc-namespace-in-cli/src/main.rs)
