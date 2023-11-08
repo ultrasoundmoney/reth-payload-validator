@@ -7,8 +7,8 @@ use reth::primitives::{
     U256,
 };
 use reth::providers::{
-    AccountReader, BlockExecutor, BlockReaderIdExt, ChainSpecProvider, HeaderProvider,
-    StateProviderFactory, WithdrawalsProvider,
+    AccountReader, BlockExecutor, BlockReaderIdExt, BundleStateWithReceipts, ChainSpecProvider,
+    HeaderProvider, StateProviderFactory, WithdrawalsProvider,
 };
 use reth::revm::{database::StateProviderDatabase, db::BundleState, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_sealed_block;
@@ -59,17 +59,15 @@ where
         Self { inner }
     }
 
-    fn check_proposer_payment(
+    fn execute_and_verify_block(
         &self,
         block: &SealedBlock,
         chain_spec: Arc<ChainSpec>,
-        expected_payment: &U256,
-        fee_recipient: &Address,
-    ) -> RpcResult<()> {
+    ) -> RpcResult<BundleStateWithReceipts> {
         let state_provider = self.provider().latest().to_rpc_result()?;
 
         let mut executor =
-            EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(state_provider));
+            EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(&state_provider));
 
         let unsealed_block = block.clone().unseal();
         // Note: Setting total difficulty to U256::MAX makes this incompatible with pre merge POW
@@ -79,19 +77,35 @@ where
             .execute_and_verify_receipt(&unsealed_block, U256::MAX, None)
             .map_err(|e| internal_rpc_err(format!("Error executing transactions: {:}", e)))?;
 
-        let output_state = executor.take_output_state();
+        let state = executor.take_output_state();
 
-        if check_proposer_balance_change(
-            output_state.state().clone(),
-            fee_recipient,
-            expected_payment,
-        ) {
+        let state_root = state_provider
+            .state_root(&state)
+            .map_err(|e| internal_rpc_err(format!("Error computing state root: {e:?}")))?;
+        if state_root != block.state_root {
+            return Err(internal_rpc_err(format!(
+                "State root mismatch. Expected: {}. Received: {}",
+                state_root, block.state_root
+            )));
+        }
+
+        Ok(state)
+    }
+
+    fn check_proposer_payment(
+        &self,
+        block: &SealedBlock,
+        state: &BundleStateWithReceipts,
+        expected_payment: &U256,
+        fee_recipient: &Address,
+    ) -> RpcResult<()> {
+        if check_proposer_balance_change(state.state(), fee_recipient, expected_payment) {
             return Ok(());
         }
 
         check_proposer_payment_in_last_transaction(
             &block.body,
-            output_state.receipts(),
+            state.receipts(),
             fee_recipient,
             expected_payment,
         )
@@ -156,7 +170,7 @@ fn check_proposer_payment_in_last_transaction(
 }
 
 fn check_proposer_balance_change(
-    output_state: BundleState,
+    output_state: &BundleState,
     fee_recipient: &Address,
     expected_payment: &U256,
 ) -> bool {
@@ -207,9 +221,11 @@ where
 
         full_validation(&block, self.provider(), &chain_spec).to_rpc_result()?;
 
+        let state = self.execute_and_verify_block(&block, chain_spec.clone())?;
+
         self.check_proposer_payment(
             &block,
-            chain_spec.clone(),
+            &state,
             &request_body.message.value,
             &request_body.execution_payload.fee_recipient,
         )
