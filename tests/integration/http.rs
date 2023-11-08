@@ -3,43 +3,40 @@ use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
     server::ServerBuilder,
 };
-use reth_db::{        mdbx::{Env, WriteMap},
-test_utils::{create_test_rw_db, TempDatabase},
-};
-use reth_db::transaction::DbTxMut;
-use reth_db::transaction::DbTx;
-use reth_db::tables;
+use reth::blockchain_tree::noop::NoopBlockchainTree;
 use reth::primitives::{
-    keccak256, sign_message, AccessList, Address, Block, Bytes, ReceiptWithBloom, Transaction,
-    Account,
+    keccak256, sign_message,
     stage::{StageCheckpoint, StageId},
-    TransactionKind, TransactionSigned, TxEip1559, B256, U256,
-    MAINNET
+    AccessList, Account, Address, Block, Bytes, ReceiptWithBloom, Transaction, TransactionKind,
+    TransactionSigned, TxEip1559, B256, MAINNET, U256,
 };
 use reth::providers::{
-    BlockExecutor,
-    providers::BlockchainProvider,
-    StateRootProvider,
-    ProviderFactory,
+    providers::BlockchainProvider, BlockExecutor, ProviderFactory, StateRootProvider,
 };
-use reth::blockchain_tree::noop::NoopBlockchainTree;
 use reth::revm::{database::StateProviderDatabase, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_block;
+use reth_db::tables;
+use reth_db::transaction::DbTx;
+use reth_db::transaction::DbTxMut;
+use reth_db::{
+    mdbx::{Env, WriteMap},
+    test_utils::{create_test_rw_db, TempDatabase},
+};
 use reth_payload_validator::rpc::{
     ValidationApiClient, ValidationApiServer, ValidationRequestBody,
 };
 use reth_payload_validator::ValidationApi;
 use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 type TestProviderFactory = ProviderFactory<Arc<TempDatabase<Env<WriteMap>>>>;
-
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_valid_block() {
     let provider_factory = get_provider_factory();
-    let validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
+    let validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
     let client = get_client(provider_factory).await;
 
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -53,7 +50,8 @@ async fn test_valid_block() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_block_number_too_high() {
     let provider_factory = get_provider_factory();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
     validation_request_body.execution_payload.block_number += 1;
     validation_request_body = seal_request_body(validation_request_body);
 
@@ -75,7 +73,8 @@ async fn test_block_number_too_high() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_block_number_already_known() {
     let provider_factory = get_provider_factory();
-    let validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
+    let validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
     let block = try_into_block(
         validation_request_body.execution_payload.clone().into(),
         None,
@@ -101,13 +100,18 @@ async fn test_block_number_already_known() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_block_hash_already_known() {
     let provider_factory = get_provider_factory();
-    let validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
+    let validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
     let block = try_into_block(
         validation_request_body.execution_payload.clone().into(),
         None,
     )
     .expect("failed to create block");
-    add_block_with_hash(&provider_factory, validation_request_body.execution_payload.block_hash, block);
+    add_block_with_hash(
+        &provider_factory,
+        validation_request_body.execution_payload.block_hash,
+        block,
+    );
 
     let client = get_client(provider_factory).await;
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -127,7 +131,8 @@ async fn test_block_hash_already_known() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_incorrect_parent() {
     let provider_factory = get_provider_factory();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
 
     let new_parent_hash = B256::random();
     validation_request_body.execution_payload.parent_hash = new_parent_hash;
@@ -148,10 +153,19 @@ async fn test_incorrect_parent() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_tx_nonce_too_low() {
     let provider_factory = get_provider_factory();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
 
     let (sender_secret_key, sender_address) = generate_random_key();
-    add_account(&provider_factory, sender_address, Account {nonce: 0, balance: U256::MAX, bytecode_hash: None});
+    add_account(
+        &provider_factory,
+        sender_address,
+        Account {
+            nonce: 0,
+            balance: U256::MAX,
+            bytecode_hash: None,
+        },
+    );
     let (_, receiver_address) = generate_random_key();
 
     let other_transaction = sign_transaction(
@@ -177,7 +191,15 @@ async fn test_tx_nonce_too_low() {
         &provider_factory,
     ));
 
-    add_account(&provider_factory, sender_address, Account {nonce: 1, balance: U256::MAX, bytecode_hash: None});
+    add_account(
+        &provider_factory,
+        sender_address,
+        Account {
+            nonce: 1,
+            balance: U256::MAX,
+            bytecode_hash: None,
+        },
+    );
 
     let client = get_client(provider_factory).await;
     let result = ValidationApiClient::validate_builder_submission_v2(
@@ -193,10 +215,19 @@ async fn test_tx_nonce_too_low() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_proposer_payment_validation_via_balance_change() {
     let provider_factory = get_provider_factory();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
 
     let (sender_secret_key, sender_address) = generate_random_key();
-    add_account(&provider_factory, sender_address, Account {nonce: 0, balance: U256::MAX, bytecode_hash: None});
+    add_account(
+        &provider_factory,
+        sender_address,
+        Account {
+            nonce: 0,
+            balance: U256::MAX,
+            bytecode_hash: None,
+        },
+    );
     let (_, receiver_address) = generate_random_key();
 
     let other_transaction = sign_transaction(
@@ -234,16 +265,30 @@ async fn test_proposer_payment_validation_via_balance_change() {
 async fn test_proposer_spent_in_same_block() {
     let provider_factory = get_provider_factory();
     let (recipient_private_key, recipient_address) = generate_random_key();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, Some(recipient_address));
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, Some(recipient_address));
     // Note: This is not necessary for this test but added here to make it otherwise identical to
     // the passing case with the reordered transactions
-    add_account(&provider_factory, 
+    add_account(
+        &provider_factory,
         recipient_address,
-        Account{ nonce: 0, balance: validation_request_body.message.value, bytecode_hash: None }
+        Account {
+            nonce: 0,
+            balance: validation_request_body.message.value,
+            bytecode_hash: None,
+        },
     );
 
     let (sender_secret_key, sender_address) = generate_random_key();
-    add_account(&provider_factory, sender_address, Account{ nonce: 0, balance: U256::MAX, bytecode_hash: None });
+    add_account(
+        &provider_factory,
+        sender_address,
+        Account {
+            nonce: 0,
+            balance: U256::MAX,
+            bytecode_hash: None,
+        },
+    );
     let (_, receiver_address) = generate_random_key();
 
     let amount_to_send = validation_request_body.message.value / U256::from(2);
@@ -300,14 +345,28 @@ async fn test_proposer_spent_in_same_block() {
 async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
     let provider_factory = get_provider_factory();
     let (recipient_private_key, recipient_address) = generate_random_key();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, Some(recipient_address));
-    add_account(&provider_factory, 
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, Some(recipient_address));
+    add_account(
+        &provider_factory,
         recipient_address,
-        Account{ nonce: 0, balance: validation_request_body.message.value, bytecode_hash: None }
+        Account {
+            nonce: 0,
+            balance: validation_request_body.message.value,
+            bytecode_hash: None,
+        },
     );
 
     let (sender_secret_key, sender_address) = generate_random_key();
-    add_account(&provider_factory, sender_address, Account{ nonce: 0, balance: U256::MAX, bytecode_hash: None });
+    add_account(
+        &provider_factory,
+        sender_address,
+        Account {
+            nonce: 0,
+            balance: U256::MAX,
+            bytecode_hash: None,
+        },
+    );
     let (_, receiver_address) = generate_random_key();
 
     let amount_to_send = validation_request_body.message.value / U256::from(2);
@@ -366,7 +425,8 @@ async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_insufficient_proposer_payment() {
     let provider_factory = get_provider_factory();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
     let original_proposer_payment = validation_request_body.message.value;
     let new_proposer_payment = original_proposer_payment + original_proposer_payment;
     validation_request_body.message.value = new_proposer_payment;
@@ -391,7 +451,8 @@ async fn test_insufficient_proposer_payment() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_wrong_hash() {
     let provider_factory = get_provider_factory();
-    let mut validation_request_body: ValidationRequestBody = generate_valid_request(&provider_factory, None);
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
     validation_request_body.execution_payload.timestamp += 1;
 
     let client = get_client(provider_factory).await;
@@ -410,7 +471,8 @@ async fn get_client(provider_factory: TestProviderFactory) -> HttpClient {
 async fn start_server(provider_factory: TestProviderFactory) -> std::net::SocketAddr {
     let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
     let addr = server.local_addr().unwrap();
-    let provider = BlockchainProvider::new(provider_factory, NoopBlockchainTree::default()).unwrap();
+    let provider =
+        BlockchainProvider::new(provider_factory, NoopBlockchainTree::default()).unwrap();
     let api = ValidationApi::new(provider);
     let server_handle = server.start(api.into_rpc());
 
@@ -426,7 +488,11 @@ fn get_call_error_message(err: Error) -> Option<String> {
     }
 }
 
-fn add_block(provider_factory: &TestProviderFactory, gas_limit: u64, base_fee_per_gas: u64) -> Block {
+fn add_block(
+    provider_factory: &TestProviderFactory,
+    gas_limit: u64,
+    base_fee_per_gas: u64,
+) -> Block {
     let block = generate_block(gas_limit, base_fee_per_gas);
     let block_hash = block.header.hash_slow();
     add_block_with_hash(provider_factory, block_hash, block.clone());
@@ -452,7 +518,15 @@ fn generate_valid_request(
     let proposer_payment = 10_u128.pow(18);
 
     let (sender_secret_key, sender_address) = generate_random_key();
-    add_account(provider_factory, sender_address, Account { nonce: 0, balance: U256::MAX, bytecode_hash: None });
+    add_account(
+        provider_factory,
+        sender_address,
+        Account {
+            nonce: 0,
+            balance: U256::MAX,
+            bytecode_hash: None,
+        },
+    );
 
     let proposer_payment_transaction = sign_transaction(
         &sender_secret_key,
@@ -514,7 +588,7 @@ fn generate_validation_request_body(
     seal_request_body(add_transactions(
         validation_request_body,
         transactions,
-        &provider_factory,
+        provider_factory,
     ))
 }
 
@@ -537,7 +611,8 @@ fn add_transactions(
         None,
     )
     .expect("failed to create block");
-    let (receipts_root, cumulative_gas_used, state_root) = calculate_receipts_root(&block, provider_factory);
+    let (receipts_root, cumulative_gas_used, state_root) =
+        calculate_receipts_root(&block, provider_factory);
     validation_request_body.execution_payload.gas_used = cumulative_gas_used;
     validation_request_body.message.gas_used = cumulative_gas_used;
     validation_request_body.execution_payload.receipts_root = receipts_root;
@@ -556,13 +631,22 @@ fn seal_request_body(mut validation_request_body: ValidationRequestBody) -> Vali
     validation_request_body.message.block_hash = sealed_block.hash();
     validation_request_body
 }
-fn calculate_receipts_root(block: &Block, provider_factory: &TestProviderFactory) -> (B256, u64, B256) {
+fn calculate_receipts_root(
+    block: &Block,
+    provider_factory: &TestProviderFactory,
+) -> (B256, u64, B256) {
     let chain_spec = MAINNET.clone();
     let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
     let mut executor = EVMProcessor::new_with_db(chain_spec, state_provider_db);
-    let (receipts, cumulative_gas_used) = executor.execute_transactions(block, U256::MAX, None).unwrap();
+    let (receipts, cumulative_gas_used) = executor
+        .execute_transactions(block, U256::MAX, None)
+        .unwrap();
     let state = executor.take_output_state();
-    let state_root = provider_factory.latest().unwrap().state_root(&state).expect("failed to get state root");
+    let state_root = provider_factory
+        .latest()
+        .unwrap()
+        .state_root(&state)
+        .expect("failed to get state root");
     let receipts_with_bloom = receipts
         .iter()
         .map(|r| r.clone().into())
@@ -587,21 +671,22 @@ fn sign_transaction(secret_key: &SecretKey, transaction: Transaction) -> Transac
 }
 
 fn get_provider_factory() -> TestProviderFactory {
-        let db = create_test_rw_db();
-        let factory = ProviderFactory::new(db, MAINNET.clone());
-        factory
+    let db = create_test_rw_db();
+    ProviderFactory::new(db, MAINNET.clone())
 }
 
 fn add_account(provider_factory: &TestProviderFactory, address: Address, account: Account) {
     let hashed_address = keccak256(address);
     let provider = provider_factory.provider_rw().unwrap();
     let tx = provider.into_tx();
-    tx.put::<tables::HashedAccount>(hashed_address, account).unwrap();
+    tx.put::<tables::HashedAccount>(hashed_address, account)
+        .unwrap();
     tx.commit().unwrap();
 
     let provider = provider_factory.provider_rw().unwrap();
     let tx = provider.into_tx();
-    tx.put::<tables::PlainAccountState>(address, account).unwrap();
+    tx.put::<tables::PlainAccountState>(address, account)
+        .unwrap();
     tx.commit().unwrap();
 }
 
@@ -609,11 +694,21 @@ fn add_block_with_hash(provider_factory: &TestProviderFactory, hash: B256, block
     let header = block.header.clone();
     let provider = provider_factory.provider_rw().unwrap();
     let tx = provider.into_tx();
-    tx.put::<tables::Headers>(header.number, header.clone()).unwrap();
-    tx.put::<tables::CanonicalHeaders>(header.clone().number, hash).unwrap();
-    tx.put::<tables::HeaderTD>(header.number, U256::MAX.into()).unwrap();
-    tx.put::<tables::HeaderNumbers>(hash, header.number).unwrap();
-    tx.put::<tables::SyncStage>(StageId::Finish.to_string(), StageCheckpoint {block_number: header.number, stage_checkpoint: None}).unwrap();
+    tx.put::<tables::Headers>(header.number, header.clone())
+        .unwrap();
+    tx.put::<tables::CanonicalHeaders>(header.clone().number, hash)
+        .unwrap();
+    tx.put::<tables::HeaderTD>(header.number, U256::MAX.into())
+        .unwrap();
+    tx.put::<tables::HeaderNumbers>(hash, header.number)
+        .unwrap();
+    tx.put::<tables::SyncStage>(
+        StageId::Finish.to_string(),
+        StageCheckpoint {
+            block_number: header.number,
+            stage_checkpoint: None,
+        },
+    )
+    .unwrap();
     tx.commit().unwrap();
 }
-
