@@ -7,8 +7,8 @@ use reth::blockchain_tree::noop::NoopBlockchainTree;
 use reth::primitives::{
     keccak256, sign_message,
     stage::{StageCheckpoint, StageId},
-    AccessList, Account, Address, Block, Bytes, ReceiptWithBloom, Transaction, TransactionKind,
-    TransactionSigned, TxEip1559, B256, MAINNET, U256,
+    AccessList, Account, Address, Block, Bytes, Header, ReceiptWithBloom, Transaction,
+    TransactionKind, TransactionSigned, TxEip1559, B256, MAINNET, U256,
 };
 use reth::providers::{
     providers::BlockchainProvider, BlockExecutor, ProviderFactory, StateRootProvider,
@@ -654,21 +654,38 @@ fn calculate_receipts_root(
 ) -> (B256, u64, B256) {
     let chain_spec = MAINNET.clone();
     let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
-    let mut executor = EVMProcessor::new_with_db(chain_spec, state_provider_db);
+
+    let mut executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db);
     let (receipts, cumulative_gas_used) = executor
         .execute_transactions(block, U256::MAX, None)
         .unwrap();
-    let state = executor.take_output_state();
-    let state_root = provider_factory
-        .latest()
-        .unwrap()
-        .state_root(&state)
-        .expect("failed to get state root");
     let receipts_with_bloom = receipts
         .iter()
         .map(|r| r.clone().into())
         .collect::<Vec<ReceiptWithBloom>>();
     let receipts_root = reth::primitives::proofs::calculate_receipt_root(&receipts_with_bloom);
+
+    let new_block = Block {
+        header: Header {
+            gas_used: cumulative_gas_used,
+            receipts_root: receipts_root.clone(),
+            ..block.header.clone()
+        },
+        ..block.clone()
+    };
+
+    let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
+    let mut block_executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db);
+    block_executor
+        .execute_and_verify_receipt(&new_block, U256::MAX, None)
+        .unwrap();
+    let state = block_executor.take_output_state();
+
+    let state_root = provider_factory
+        .latest()
+        .unwrap()
+        .state_root(&state)
+        .expect("failed to get state root");
     (receipts_root, cumulative_gas_used, state_root)
 }
 
