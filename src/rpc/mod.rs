@@ -86,7 +86,6 @@ where
             fee_recipient,
             expected_payment,
         ) {
-            println!("Proposer payment verified via balance change");
             return Ok(());
         }
 
@@ -153,8 +152,6 @@ fn check_proposer_payment_in_last_transaction(
         )));
     }
 
-    println!("Proposer payment verified via Tx");
-
     Ok(())
 }
 
@@ -176,10 +173,6 @@ fn check_proposer_balance_change(
         None => AccountInfo::default(), // TODO: In tests with the MockProvider this was None by default, check if this fallback is needed in production
     };
 
-    println!(
-        "Proposer payment: Before: {:}, After: {:}",
-        fee_receiver_account_before.balance, fee_receiver_account_after.balance
-    );
     fee_receiver_account_after.balance >= (fee_receiver_account_before.balance + expected_payment)
 }
 
