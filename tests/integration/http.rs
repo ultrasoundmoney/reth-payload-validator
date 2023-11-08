@@ -7,6 +7,7 @@ use reth::primitives::{
     keccak256, sign_message, AccessList, Address, Block, Bytes, ReceiptWithBloom, Transaction,
     TransactionKind, TransactionSigned, TxEip1559, B256, U256,
 };
+use reth::providers::BlockExecutor;
 use reth::providers::{
     test_utils::{ExtendedAccount, MockEthProvider},
     HeaderProvider,
@@ -169,7 +170,7 @@ async fn test_tx_nonce_too_low() {
             nonce: 0, // Invalid Tx because nonce is too low
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
-            value: 1_000_000_u128,
+            value: 1_000_000_u128.into(),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -215,7 +216,7 @@ async fn test_proposer_payment_validation_via_balance_change() {
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
-            value: 1_000_000_u128,
+            value: 1_000_000_u128.into(),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -279,7 +280,7 @@ async fn test_proposer_spent_in_same_block() {
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
-            value: 1_000_000_u128,
+            value: 1_000_000_u128.into(),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -343,7 +344,7 @@ async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
-            value: 1_000_000_u128,
+            value: 1_000_000_u128.into(),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -471,7 +472,7 @@ fn generate_valid_request(
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(fee_recipient),
-            value: proposer_payment,
+            value: proposer_payment.into(),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
