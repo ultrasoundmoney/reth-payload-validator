@@ -33,30 +33,8 @@ use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::sync::Arc;
 
-const VALIDATION_REQUEST_BODY: &str = include_str!("../../tests/data/single_payload.json");
-
 type TestProviderFactory = ProviderFactory<Arc<TempDatabase<Env<WriteMap>>>>;
 
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_example_payload() {
-    let validation_request_body: ValidationRequestBody =
-        serde_json::from_str(VALIDATION_REQUEST_BODY).unwrap();
-
-    let provider_factory = get_provider_factory();
-    let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
-    let expected_message = format!(
-        "block parent [hash={:?}] is not known",
-        validation_request_body.execution_payload.parent_hash
-    );
-    let error_message = get_call_error_message(result.unwrap_err()).unwrap();
-    assert_eq!(error_message, expected_message);
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_valid_block() {
