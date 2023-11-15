@@ -11,6 +11,11 @@ path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# Like release, but with full debug symbols. Useful for e.g. `perf`.
+[profile.debug-fast]
+inherits = "release"
+debug = true
+
 [dependencies]
 async-trait = "0.1.73"
 clap = "4.4.5"
