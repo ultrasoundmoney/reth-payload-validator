@@ -592,7 +592,6 @@ fn generate_validation_request_body(
 ) -> ValidationRequestBody {
     let parent_block_hash = parent_block.hash_slow();
     let mut validation_request_body = ValidationRequestBody::default();
-    validation_request_body.execution_payload.fee_recipient = fee_recipient;
     validation_request_body.execution_payload.base_fee_per_gas = U256::from(base_fee_per_gas);
     validation_request_body.execution_payload.timestamp = timestamp;
     validation_request_body.execution_payload.parent_hash = parent_block_hash;
@@ -601,6 +600,7 @@ fn generate_validation_request_body(
     validation_request_body.message.gas_limit = parent_block.gas_limit;
     validation_request_body.message.parent_hash = parent_block_hash;
     validation_request_body.message.value = U256::from(proposer_fee);
+    validation_request_body.message.proposer_fee_recipient = fee_recipient;
 
     seal_request_body(add_transactions(
         validation_request_body,

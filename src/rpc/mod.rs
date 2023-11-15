@@ -227,7 +227,7 @@ where
             &block,
             &state,
             &request_body.message.value,
-            &request_body.execution_payload.fee_recipient,
+            &request_body.message.proposer_fee_recipient,
         )
     }
 }
