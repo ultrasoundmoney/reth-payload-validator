@@ -23,7 +23,7 @@ pub struct BidTrace {
     pub block_hash: B256,
     pub builder_pubkey: Bytes,
     pub proposer_pubkey: Bytes,
-    pub proposer_fee_recipient: Bytes,
+    pub proposer_fee_recipient: Address,
     #[serde_as(as = "DisplayFromStr")]
     pub gas_limit: u64,
     #[serde_as(as = "DisplayFromStr")]
