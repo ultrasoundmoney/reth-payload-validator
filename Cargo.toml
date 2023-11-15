@@ -11,6 +11,11 @@ path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# Like release, but with full debug symbols. Useful for e.g. `perf`.
+[profile.debug-fast]
+inherits = "release"
+debug = true
+
 [dependencies]
 async-trait = "0.1.73"
 clap = "4.4.5"
@@ -18,8 +23,8 @@ derivative = "2.2.0"
 eyre = "0.6.8"
 hex = "0.4.3"
 jsonrpsee = "0.20.1"
-reth = { git = "https://github.com/paradigmxyz/reth", rev = "4865e59684fbf1457125feec0c06a30405bf4b60" }
-reth-db = { features = ["test-utils"], git = "https://github.com/paradigmxyz/reth", rev = "4865e59684fbf1457125feec0c06a30405bf4b60"}
+reth = { git = "https://github.com/paradigmxyz/reth", rev = "365fbb18c210064fe184ffd7ade88bc0ed3d161b" }
+reth-db = { features = ["test-utils"], git = "https://github.com/paradigmxyz/reth", rev = "365fbb18c210064fe184ffd7ade88bc0ed3d161b"}
 secp256k1 = { version = "0.28.0", features = ["rand-std"] }
 serde = "1.0.188"
 serde_json = "1.0.107"
