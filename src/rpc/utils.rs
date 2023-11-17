@@ -1,5 +1,6 @@
 use crate::rpc::result::internal_rpc_err;
 use jsonrpsee::core::RpcResult;
+use std::cmp::Ordering;
 
 pub fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(
     name: &str,
@@ -30,13 +31,15 @@ pub fn calc_gas_limit(parent_gas_limit: u64, desired_limit: u64) -> u64 {
     // TODO: Understand why 1 is subtracted here
     let delta = parent_gas_limit / GAS_LIMIT_BOUND_DIVISOR - 1;
     let desired_limit = std::cmp::max(desired_limit, MIN_GAS_LIMIT);
-    if parent_gas_limit < desired_limit {
-        let max_acceptable_limit = parent_gas_limit + delta;
-        std::cmp::min(max_acceptable_limit, desired_limit)
-    } else if parent_gas_limit > desired_limit {
-        let min_acceptable_limit = parent_gas_limit - delta;
-        std::cmp::max(min_acceptable_limit, desired_limit)
-    } else {
-        parent_gas_limit
+    match parent_gas_limit.cmp(&desired_limit) {
+        Ordering::Less => {
+            let max_acceptable_limit = parent_gas_limit + delta;
+            std::cmp::min(max_acceptable_limit, desired_limit)
+        }
+        Ordering::Greater => {
+            let min_acceptable_limit = parent_gas_limit - delta;
+            std::cmp::max(min_acceptable_limit, desired_limit)
+        }
+        Ordering::Equal => parent_gas_limit,
     }
 }
