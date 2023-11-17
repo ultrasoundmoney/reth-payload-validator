@@ -128,6 +128,13 @@ where
                     "Parent block with hash {} not found",
                     parent_hash
                 )))?;
+
+        // Prysm has a bug where it registers validators with a desired gas limit
+        // of 0. Some builders treat these as desiring gas limit 30_000_000. As a
+        // workaround, whenever the desired gas limit is 0, we accept both the
+        // limit as calculated with a desired limit of 0, and builders which fall
+        // back to calculating with the default 30_000_000.
+        // TODO: Review if we still need this
         if registered_gas_limit != 0
             || block_gas_limit != calc_gas_limit(parent.gas_limit, 30_000_000)
         {
