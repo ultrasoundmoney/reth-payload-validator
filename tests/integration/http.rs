@@ -48,6 +48,25 @@ async fn test_valid_block() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn test_registered_gas_limit_too_low_block() {
+    let provider_factory = get_provider_factory();
+    let mut validation_request_body: ValidationRequestBody =
+        generate_valid_request(&provider_factory, None);
+    let client = get_client(provider_factory).await;
+
+    validation_request_body.registered_gas_limit = 10_000;
+
+    let result = ValidationApiClient::validate_builder_submission_v2(
+        &client,
+        validation_request_body.clone(),
+    )
+    .await;
+    println!("{:?}", result);
+    let error_message = get_call_error_message(result.unwrap_err()).unwrap();
+    assert!(error_message.contains("Incorrect gas limit set"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn test_invalid_state_root() {
     let provider_factory = get_provider_factory();
     let mut validation_request_body: ValidationRequestBody =
