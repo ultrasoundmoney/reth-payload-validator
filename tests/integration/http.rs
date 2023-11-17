@@ -162,7 +162,7 @@ async fn test_incorrect_parent() {
         validation_request_body.clone(),
     )
     .await;
-    let expected_message = format!("block parent [hash={:?}] is not known", new_parent_hash);
+    let expected_message = format!("Parent block with hash {:?} not found", new_parent_hash);
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     assert_eq!(error_message, expected_message);
 }
@@ -601,6 +601,7 @@ fn generate_validation_request_body(
     validation_request_body.message.parent_hash = parent_block_hash;
     validation_request_body.message.value = U256::from(proposer_fee);
     validation_request_body.message.proposer_fee_recipient = fee_recipient;
+    validation_request_body.registered_gas_limit = 1_000_000;
 
     seal_request_body(add_transactions(
         validation_request_body,

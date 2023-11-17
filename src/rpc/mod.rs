@@ -117,31 +117,27 @@ where
     fn check_gas_limit(
         &self,
         parent_hash: &B256,
-        registered_gas_limit: String,
-        block_gas_limit: u64
+        registered_gas_limit: u64,
+        block_gas_limit: u64,
     ) -> RpcResult<()> {
-        let parent = self.provider().header(parent_hash).to_rpc_result()?.ok_or(
-            internal_rpc_err(format!(
-                "Parent block with hash {} not found",
-                parent_hash
-            )),
-        )?;
-        let registered_gas_limit_string = registered_gas_limit;
-        let registered_gas_limit = registered_gas_limit_string.parse::<u64>().map_err(|e| {
-            internal_rpc_err(format!(
-                "Error parsing registered gas limit: {:?}",
-                e
-            ))
-        })?;
-        if registered_gas_limit == 0 && block_gas_limit == calc_gas_limit(parent.gas_limit, 30_000_000) {
+        let parent =
+            self.provider()
+                .header(parent_hash)
+                .to_rpc_result()?
+                .ok_or(internal_rpc_err(format!(
+                    "Parent block with hash {} not found",
+                    parent_hash
+                )))?;
+        if registered_gas_limit == 0
+            && block_gas_limit == calc_gas_limit(parent.gas_limit, 30_000_000)
+        {
             // Prysm has a bug where it registers validators with a desired gas limit
             // of 0. Some builders treat these as desiring gas limit 30_000_000. As a
             // workaround, whenever the desired gas limit is 0, we accept both the
             // limit as calculated with a desired limit of 0, and builders which fall
             // back to calculating with the default 30_000_000.
             return Ok(());
-        }
-        else {
+        } else {
             let calculated_gas_limit = calc_gas_limit(parent.gas_limit, registered_gas_limit);
             if calculated_gas_limit != block_gas_limit {
                 return Err(internal_rpc_err(format!(
@@ -150,9 +146,8 @@ where
                 )));
             }
         }
-        return Ok(());
+        Ok(())
     }
-        
 }
 
 fn check_proposer_payment_in_last_transaction(
@@ -252,7 +247,11 @@ where
         let block = try_into_sealed_block(request_body.execution_payload.clone().into(), None)
             .to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
-        self.check_gas_limit(&block.parent_hash, request_body.registered_gas_limit, block.gas_limit)?;
+        self.check_gas_limit(
+            &block.parent_hash,
+            request_body.registered_gas_limit,
+            block.gas_limit,
+        )?;
 
         compare_values(
             "ParentHash",
@@ -294,4 +293,3 @@ pub struct ValidationApiInner<Provider> {
     /// The provider that can interact with the chain.
     provider: Provider,
 }
-

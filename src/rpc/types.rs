@@ -4,13 +4,15 @@ use reth::rpc::types::{ExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2,
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 
+#[serde_as]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ValidationRequestBody {
     pub execution_payload: ExecutionPayloadValidation,
     pub message: BidTrace,
     pub signature: Bytes,
-    pub registered_gas_limit: String,
+    #[serde_as(as = "DisplayFromStr")]
+    pub registered_gas_limit: u64,
 }
 
 #[serde_as]

@@ -1,5 +1,5 @@
-use jsonrpsee::core::RpcResult;
 use crate::rpc::result::internal_rpc_err;
+use jsonrpsee::core::RpcResult;
 
 pub fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(
     name: &str,
@@ -16,7 +16,7 @@ pub fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(
     }
 }
 
-// TODO: Can we avoid hard coding this here and read it from reth config instead ? 
+// TODO: Can we avoid hard coding this here and read it from reth config instead ?
 const GAS_LIMIT_BOUND_DIVISOR: u64 = 1024;
 const MIN_GAS_LIMIT: u64 = 5000;
 
@@ -37,6 +37,5 @@ pub fn calc_gas_limit(parent_gas_limit: u64, desired_limit: u64) -> u64 {
             limit = desired_limit;
         }
     }
-    return limit;
+    limit
 }
-
