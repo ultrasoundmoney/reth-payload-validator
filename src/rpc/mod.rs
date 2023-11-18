@@ -135,18 +135,19 @@ where
         // limit as calculated with a desired limit of 0, and builders which fall
         // back to calculating with the default 30_000_000.
         // TODO: Review if we still need this
-        if registered_gas_limit != 0
-            || block_gas_limit != calc_gas_limit(parent.gas_limit, 30_000_000)
+        if registered_gas_limit == 0
+            && block_gas_limit == calc_gas_limit(parent.gas_limit, 30_000_000)
         {
-            let calculated_gas_limit = calc_gas_limit(parent.gas_limit, registered_gas_limit);
-            if calculated_gas_limit != block_gas_limit {
-                return Err(internal_rpc_err(format!(
-                    "Incorrect gas limit set, expected: {}, got: {}",
-                    calculated_gas_limit, block_gas_limit
-                )));
-            }
+            return Ok(());
         }
-        Ok(())
+        let calculated_gas_limit = calc_gas_limit(parent.gas_limit, registered_gas_limit);
+        if calculated_gas_limit == block_gas_limit {
+            return Ok(());
+        }
+        Err(internal_rpc_err(format!(
+            "Incorrect gas limit set, expected: {}, got: {}",
+            calculated_gas_limit, block_gas_limit
+        )))
     }
 }
 
