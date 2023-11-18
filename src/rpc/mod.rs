@@ -4,7 +4,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use reth::consensus_common::validation::full_validation;
 use reth::primitives::{
     revm_primitives::AccountInfo, Address, ChainSpec, Receipts, SealedBlock, TransactionSigned,
-    U256,
+    B256, U256,
 };
 use reth::providers::{
     AccountReader, BlockExecutor, BlockReaderIdExt, BundleStateWithReceipts, ChainSpecProvider,
@@ -23,6 +23,9 @@ pub use types::*;
 
 mod result;
 use result::internal_rpc_err;
+
+mod utils;
+use utils::*;
 
 /// trait interface for a custom rpc namespace: `validation`
 ///
@@ -109,6 +112,42 @@ where
             fee_recipient,
             expected_payment,
         )
+    }
+
+    fn check_gas_limit(
+        &self,
+        parent_hash: &B256,
+        registered_gas_limit: u64,
+        block_gas_limit: u64,
+    ) -> RpcResult<()> {
+        let parent =
+            self.provider()
+                .header(parent_hash)
+                .to_rpc_result()?
+                .ok_or(internal_rpc_err(format!(
+                    "Parent block with hash {} not found",
+                    parent_hash
+                )))?;
+
+        // Prysm has a bug where it registers validators with a desired gas limit
+        // of 0. Some builders treat these as desiring gas limit 30_000_000. As a
+        // workaround, whenever the desired gas limit is 0, we accept both the
+        // limit as calculated with a desired limit of 0, and builders which fall
+        // back to calculating with the default 30_000_000.
+        // TODO: Review if we still need this
+        if registered_gas_limit == 0
+            && block_gas_limit == calc_gas_limit(parent.gas_limit, 30_000_000)
+        {
+            return Ok(());
+        }
+        let calculated_gas_limit = calc_gas_limit(parent.gas_limit, registered_gas_limit);
+        if calculated_gas_limit == block_gas_limit {
+            return Ok(());
+        }
+        Err(internal_rpc_err(format!(
+            "Incorrect gas limit set, expected: {}, got: {}",
+            calculated_gas_limit, block_gas_limit
+        )))
     }
 }
 
@@ -209,6 +248,11 @@ where
         let block = try_into_sealed_block(request_body.execution_payload.clone().into(), None)
             .to_rpc_result()?;
         let chain_spec = self.provider().chain_spec();
+        self.check_gas_limit(
+            &block.parent_hash,
+            request_body.registered_gas_limit,
+            block.gas_limit,
+        )?;
 
         compare_values(
             "ParentHash",
@@ -249,19 +293,4 @@ impl<Provider> Clone for ValidationApi<Provider> {
 pub struct ValidationApiInner<Provider> {
     /// The provider that can interact with the chain.
     provider: Provider,
-}
-
-fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(
-    name: &str,
-    expected: T,
-    actual: T,
-) -> RpcResult<()> {
-    if expected != actual {
-        Err(internal_rpc_err(format!(
-            "incorrect {} {}, expected {}",
-            name, actual, expected
-        )))
-    } else {
-        Ok(())
-    }
 }
