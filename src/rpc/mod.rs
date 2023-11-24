@@ -3,8 +3,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use reth::consensus_common::validation::full_validation;
 use reth::primitives::{
-    revm_primitives::AccountInfo, Address, ChainSpec, Receipts, SealedBlock, TransactionSigned,
-    B256, U256,
+    revm_primitives::AccountInfo, Address, Receipts, SealedBlock, TransactionSigned, U256,
 };
 use reth::providers::{
     AccountReader, BlockExecutor, BlockReaderIdExt, BundleStateWithReceipts, ChainSpecProvider,
@@ -31,7 +30,6 @@ mod utils;
 use utils::*;
 
 use std::time::Instant;
-
 
 /// trait interface for a custom rpc namespace: `validation`
 ///
@@ -67,98 +65,140 @@ where
         let inner = Arc::new(ValidationApiInner { provider });
         Self { inner }
     }
+}
 
-    async fn validate_builder_submission(
-        &self,
+struct ValidationRequest<'a, Provider> {
+    request_id: Uuid,
+    start_time: Instant,
+    request_body: ValidationRequestBody,
+    provider: &'a Provider,
+}
+
+impl<'a, Provider> ValidationRequest<'a, Provider> {
+    fn new(
         request_body: ValidationRequestBody,
-        request_id: &Uuid,
-        start_time: &Instant,
-    ) -> RpcResult<()> {
-
-        fn trace_validation_step<T>(
-            result: RpcResult<T>,
-            name: &str,
-            start_time: &Instant,
-            request_id: &Uuid,
-        ) -> RpcResult<T> {
-            result
-                .inspect_err(|error| {
-                    tracing::debug!(
-                        ?request_id,
-                        ?error,
-                        time_elapsed = start_time.elapsed().as_micros(),
-                        "{}",
-                        name.to_string() + " failed"
-                    )
-                })
-                .inspect(|_| {
-                    tracing::debug!(
-                        ?request_id,
-                        time_elapsed = start_time.elapsed().as_micros(),
-                        "{}",
-                        name.to_string() + " succeeded"
-                    )
-                })
+        provider: &'a Provider,
+    ) -> ValidationRequest<'a, Provider> {
+        let request_id = Uuid::new_v4();
+        let start_time = Instant::now();
+        tracing::info!(block_hash = ?request_body.message.block_hash, ?request_id, "Received Validation Request");
+        Self {
+            request_id,
+            start_time,
+            request_body,
+            provider,
         }
+    }
+}
 
-        let block = trace_validation_step(
-            try_into_sealed_block(request_body.execution_payload.clone().into(), None).to_rpc_result(),
-            "Block parsing",
-            start_time,
-            request_id
-        )?;
-        let chain_spec = self.provider().chain_spec();
-        trace_validation_step(
-            self.check_gas_limit(
-                &block.parent_hash,
-                request_body.registered_gas_limit,
-                block.gas_limit,
-            ),
-            "Check Gas Limit",
-            start_time,
-            request_id
-        )?;
+impl<Provider> ValidationRequest<'_, Provider>
+where
+    Provider: BlockReaderIdExt
+        + ChainSpecProvider
+        + StateProviderFactory
+        + HeaderProvider
+        + AccountReader
+        + WithdrawalsProvider
+        + 'static,
+{
+    async fn validate(&self) -> RpcResult<()> {
+        self.validate_inner()
+            .await
+            .inspect_err(|error| {
+                tracing::warn!(
+                    request_id = self.request_id.to_string(),
+                    ?error,
+                    time_elapsed = self.start_time.elapsed().as_micros(),
+                    "Validation failed"
+                );
+            })
+            .inspect(|_| {
+                tracing::info!(
+                    request_id = self.request_id.to_string(),
+                    time_elapsed = self.start_time.elapsed().as_micros(),
+                    "Validation successful"
+                );
+            })
+    }
+    async fn validate_inner(&self) -> RpcResult<()> {
+        self.trace_validation_step(self.check_gas_limit(), "Check Gas Limit")?;
 
-        trace_validation_step(
-            compare_all_values(&request_body.message, &block),
+        self.trace_validation_step(
+            self.compare_message_execution_payload(),
             "Message / Payload comparison",
-            start_time,
-            request_id
         )?;
 
-        trace_validation_step(
-            full_validation(&block, self.provider(), &chain_spec).to_rpc_result(),
-            "Full validation",
-            start_time,
-            request_id
-        )?;
+        let block = self.trace_validation_step(self.parse_block(), "Block parsing")?;
 
-        let state = trace_validation_step(
-                self.execute_and_verify_block(&block, chain_spec.clone()),
-                "Execute and Verify Block",
-                start_time,
-                request_id
-            )?;
-        trace_validation_step(
-            self.check_proposer_payment(
-                &block,
-                &state,
-                &request_body.message.value,
-                &request_body.message.proposer_fee_recipient,
-            ),
+        self.trace_validation_step(self.validate_header(&block), "Full validation")?;
+
+        let state = self.trace_validation_step(
+            self.execute_and_verify_block(&block),
+            "Execute and Verify Block",
+        )?;
+        self.trace_validation_step(
+            self.check_proposer_payment(&block, &state),
             "Check Proposer Payment",
-            start_time,
-            request_id
         )?;
         Ok(())
     }
 
-    fn execute_and_verify_block(
-        &self,
-        block: &SealedBlock,
-        chain_spec: Arc<ChainSpec>,
-    ) -> RpcResult<BundleStateWithReceipts> {
-        let state_provider = self.provider().latest().to_rpc_result()?;
+    fn trace_validation_step<T>(&self, result: RpcResult<T>, name: &str) -> RpcResult<T> {
+        result
+            .inspect_err(|error| {
+                tracing::debug!(
+                    request_id = self.request_id.to_string(),
+                    ?error,
+                    time_elapsed = self.start_time.elapsed().as_micros(),
+                    "{}",
+                    name.to_string() + " failed"
+                )
+            })
+            .inspect(|_| {
+                tracing::debug!(
+                    request_id = self.request_id.to_string(),
+                    time_elapsed = self.start_time.elapsed().as_micros(),
+                    "{}",
+                    name.to_string() + " succeeded"
+                )
+            })
+    }
+
+    fn compare_message_execution_payload(&self) -> RpcResult<()> {
+        compare_values(
+            "ParentHash",
+            self.request_body.message.parent_hash,
+            self.request_body.execution_payload.parent_hash,
+        )?;
+        compare_values(
+            "BlockHash",
+            self.request_body.message.block_hash,
+            self.request_body.execution_payload.block_hash,
+        )?;
+        compare_values(
+            "GasLimit",
+            self.request_body.message.gas_limit,
+            self.request_body.execution_payload.gas_limit,
+        )?;
+        compare_values(
+            "GasUsed",
+            self.request_body.message.gas_used,
+            self.request_body.execution_payload.gas_used,
+        )
+    }
+
+    fn parse_block(&self) -> RpcResult<SealedBlock> {
+        try_into_sealed_block(self.request_body.execution_payload.clone().into(), None)
+            .to_rpc_result()
+    }
+
+    fn validate_header(&self, block: &SealedBlock) -> RpcResult<()> {
+        full_validation(block, self.provider, &self.provider.chain_spec()).to_rpc_result()
+    }
+
+    fn execute_and_verify_block(&self, block: &SealedBlock) -> RpcResult<BundleStateWithReceipts> {
+        let chain_spec = self.provider.chain_spec();
+        let state_provider = self.provider.latest().to_rpc_result()?;
 
         let mut executor =
             EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(&state_provider));
@@ -190,9 +230,9 @@ where
         &self,
         block: &SealedBlock,
         state: &BundleStateWithReceipts,
-        expected_payment: &U256,
-        fee_recipient: &Address,
     ) -> RpcResult<()> {
+        let expected_payment = &self.request_body.message.value;
+        let fee_recipient = &self.request_body.message.proposer_fee_recipient;
         if check_proposer_balance_change(state.state(), fee_recipient, expected_payment) {
             return Ok(());
         }
@@ -205,14 +245,13 @@ where
         )
     }
 
-    fn check_gas_limit(
-        &self,
-        parent_hash: &B256,
-        registered_gas_limit: u64,
-        block_gas_limit: u64,
-    ) -> RpcResult<()> {
+    fn check_gas_limit(&self) -> RpcResult<()> {
+        let parent_hash = &self.request_body.execution_payload.parent_hash;
+        let registered_gas_limit = self.request_body.registered_gas_limit;
+        let block_gas_limit = self.request_body.execution_payload.gas_limit;
+
         let parent = self
-            .provider()
+            .provider
             .header(parent_hash)
             .to_rpc_result()?
             .ok_or(internal_rpc_err(format!("Parent block with hash {} not found", parent_hash)))?;
@@ -333,34 +372,9 @@ where
         &self,
         request_body: ValidationRequestBody,
     ) -> RpcResult<()> {
-        let start_time = Instant::now();
-        let request_id = Uuid::new_v4();
-        tracing::info!(block_hash = ?request_body.message.block_hash, ?request_id, "Received Validation Request");
-        self.validate_builder_submission(request_body, &request_id, &start_time)
-            .await
-            .inspect_err(|error| {
-                tracing::warn!(
-                    ?request_id,
-                    time_elapsed = start_time.elapsed().as_micros(),
-                    ?error,
-                    "Validation failed"
-                );
-            })
-            .inspect(|_| {
-                tracing::info!(
-                    ?request_id,
-                    time_elapsed = start_time.elapsed().as_micros(),
-                    "Validation successful"
-                );
-            })
+        let request = ValidationRequest::new(request_body, self.provider());
+        request.validate().await
     }
-}
-
-fn compare_all_values(message: &BidTrace, block: &SealedBlock) -> RpcResult<()> {
-    compare_values("ParentHash", message.parent_hash, block.parent_hash)?;
-    compare_values("BlockHash", message.block_hash, block.hash())?;
-    compare_values("GasLimit", message.gas_limit, block.gas_limit)?;
-    compare_values("GasUsed", message.gas_used, block.gas_used)
 }
 
 impl<Provider> std::fmt::Debug for ValidationApi<Provider> {
