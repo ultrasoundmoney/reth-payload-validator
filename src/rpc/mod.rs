@@ -232,7 +232,7 @@ where
             tracing::debug!(parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, "Registered gas limit > 0, Correct gas limit set");
             return Ok(());
         }
-        tracing::warn!(parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, ?calculated_gas_limit, "Incorrect gas limit set");
+        tracing::debug!(parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, ?calculated_gas_limit, "Incorrect gas limit set");
         Err(internal_rpc_err(format!(
             "Incorrect gas limit set, expected: {}, got: {}",
             calculated_gas_limit, block_gas_limit
