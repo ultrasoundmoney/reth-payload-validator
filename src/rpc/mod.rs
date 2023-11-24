@@ -36,7 +36,7 @@ macro_rules! trace_validation_step {
     ($step:expr, $name:expr, $start_time: ident, $request_id: ident) => {
         $step
             .inspect_err(|error| {
-                tracing::error!(
+                tracing::debug!(
                     ?$request_id,
                     ?error,
                     time_elapsed = $start_time.elapsed().as_micros(),
@@ -88,6 +88,66 @@ where
     pub fn new(provider: Provider) -> Self {
         let inner = Arc::new(ValidationApiInner { provider });
         Self { inner }
+    }
+
+    async fn validate_builder_submission(
+        &self,
+        request_body: ValidationRequestBody,
+        request_id: &Uuid,
+        start_time: &Instant,
+    ) -> RpcResult<()> {
+        let block = trace_validation_step!(
+            try_into_sealed_block(request_body.execution_payload.clone().into(), None)
+                .to_rpc_result(),
+            "Block parsing",
+            start_time,
+            request_id
+        );
+        let chain_spec = self.provider().chain_spec();
+        trace_validation_step!(
+            self.check_gas_limit(
+                &block.parent_hash,
+                request_body.registered_gas_limit,
+                block.gas_limit,
+            ),
+            "Check Gas Limit",
+            start_time,
+            request_id
+        );
+
+        trace_validation_step!(
+            compare_all_values(&request_body.message, &block),
+            "Message / Payload comparison",
+            start_time,
+            request_id
+        );
+
+        trace_validation_step!(
+            full_validation(&block, self.provider(), &chain_spec).to_rpc_result(),
+            "Full validation",
+            start_time,
+            request_id
+        );
+
+        let state =
+            trace_validation_step!(
+                self.execute_and_verify_block(&block, chain_spec.clone()),
+                "Execute and Verify Block",
+                start_time,
+                request_id
+            );
+        trace_validation_step!(
+            self.check_proposer_payment(
+                &block,
+                &state,
+                &request_body.message.value,
+                &request_body.message.proposer_fee_recipient,
+            ),
+            "Check Proposer Payment",
+            start_time,
+            request_id
+        );
+        Ok(())
     }
 
     fn execute_and_verify_block(
@@ -272,59 +332,24 @@ where
     ) -> RpcResult<()> {
         let start_time = Instant::now();
         let request_id = Uuid::new_v4();
-        tracing::debug!(block_hash = ?request_body.message.block_hash, ?request_id, "Received Validation Request");
-        let block = trace_validation_step!(
-            try_into_sealed_block(request_body.execution_payload.clone().into(), None)
-                .to_rpc_result(),
-            "Block parsing",
-            start_time,
-            request_id
-        );
-        let chain_spec = self.provider().chain_spec();
-        trace_validation_step!(
-            self.check_gas_limit(
-                &block.parent_hash,
-                request_body.registered_gas_limit,
-                block.gas_limit,
-            ),
-            "Check Gas Limit",
-            start_time,
-            request_id
-        );
-
-        trace_validation_step!(
-            compare_all_values(&request_body.message, &block),
-            "Message / Payload comparison",
-            start_time,
-            request_id
-        );
-
-        trace_validation_step!(
-            full_validation(&block, self.provider(), &chain_spec).to_rpc_result(),
-            "Full validation",
-            start_time,
-            request_id
-        );
-
-        let state =
-            trace_validation_step!(
-                self.execute_and_verify_block(&block, chain_spec.clone()),
-                "Execute and Verify Block",
-                start_time,
-                request_id
-            );
-        trace_validation_step!(
-            self.check_proposer_payment(
-                &block,
-                &state,
-                &request_body.message.value,
-                &request_body.message.proposer_fee_recipient,
-            ),
-            "Check Proposer Payment",
-            start_time,
-            request_id
-        );
-        Ok(())
+        tracing::info!(block_hash = ?request_body.message.block_hash, ?request_id, "Received Validation Request");
+        self.validate_builder_submission(request_body, &request_id, &start_time)
+            .await
+            .inspect_err(|error| {
+                tracing::warn!(
+                    ?request_id,
+                    time_elapsed = start_time.elapsed().as_micros(),
+                    ?error,
+                    "Validation failed"
+                );
+            })
+            .inspect(|_| {
+                tracing::info!(
+                    ?request_id,
+                    time_elapsed = start_time.elapsed().as_micros(),
+                    "Validation successful"
+                );
+            })
     }
 }
 
