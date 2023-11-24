@@ -5025,6 +5025,7 @@ dependencies = [
  "jsonrpsee",
  "reth",
  "reth-db",
+ "reth-tracing",
  "secp256k1 0.28.0",
  "serde",
  "serde_json",
