@@ -15,6 +15,7 @@ use reth::rpc::compat::engine::payload::try_into_sealed_block;
 use reth::rpc::result::ToRpcResult;
 
 use reth_tracing::tracing;
+use uuid::Uuid;
 
 use std::sync::Arc;
 
@@ -30,6 +31,29 @@ mod utils;
 use utils::*;
 
 use std::time::Instant;
+
+macro_rules! trace_validation_step {
+    ($step:expr, $name:expr, $start_time: ident, $request_id: ident) => {
+        $step
+            .inspect_err(|error| {
+                tracing::error!(
+                    ?$request_id,
+                    ?error,
+                    time_elapsed = $start_time.elapsed().as_micros(),
+                    "{}",
+                    $name.to_string() + " failed"
+                )
+            })
+            .inspect(|_| {
+                tracing::debug!(
+                    ?$request_id,
+                    time_elapsed = $start_time.elapsed().as_micros(),
+                    "{}",
+                    $name.to_string() + " succeeded"
+                )
+            })?
+    };
+}
 
 /// trait interface for a custom rpc namespace: `validation`
 ///
@@ -124,14 +148,11 @@ where
         registered_gas_limit: u64,
         block_gas_limit: u64,
     ) -> RpcResult<()> {
-        let parent =
-            self.provider()
-                .header(parent_hash)
-                .to_rpc_result()?
-                .ok_or(internal_rpc_err(format!(
-                    "Parent block with hash {} not found",
-                    parent_hash
-                )))?;
+        let parent = self
+            .provider()
+            .header(parent_hash)
+            .to_rpc_result()?
+            .ok_or(internal_rpc_err(format!("Parent block with hash {} not found", parent_hash)))?;
         tracing::debug!(parent_hash = %parent_hash, parent_gas_limit = parent.gas_limit, registered_gas_limit = registered_gas_limit, block_gas_limit = block_gas_limit, "Checking gas limit");
 
         // Prysm has a bug where it registers validators with a desired gas limit
@@ -148,7 +169,7 @@ where
         }
         let calculated_gas_limit = calc_gas_limit(parent.gas_limit, registered_gas_limit);
         if calculated_gas_limit == block_gas_limit {
-           tracing::debug!(parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, "Registered gas limit > 0, Correct gas limit set");
+            tracing::debug!(parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, "Registered gas limit > 0, Correct gas limit set");
             return Ok(());
         }
         tracing::warn!(parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, ?calculated_gas_limit, "Incorrect gas limit set");
@@ -166,17 +187,13 @@ fn check_proposer_payment_in_last_transaction(
     expected_payment: &U256,
 ) -> RpcResult<()> {
     if receipts.is_empty() || receipts[0].is_empty() {
-        return Err(internal_rpc_err(
-            "No receipts in block to verify proposer payment",
-        ));
+        return Err(internal_rpc_err("No receipts in block to verify proposer payment"));
     }
     let receipts = &receipts[0];
 
     let num_transactions = transactions.len();
     if num_transactions == 0 {
-        return Err(internal_rpc_err(
-            "No transactions in block to verify proposer payment",
-        ));
+        return Err(internal_rpc_err("No transactions in block to verify proposer payment"));
     }
     if num_transactions != receipts.len() {
         return Err(internal_rpc_err(format!(
@@ -207,10 +224,9 @@ fn check_proposer_payment_in_last_transaction(
         .clone()
         .ok_or_else(|| internal_rpc_err("Proposer payment receipt not found in block receipts"))?;
     if !proposer_payment_receipt.success {
-        return Err(internal_rpc_err(format!(
-            "Proposer payment tx failed: {:?}",
-            proposer_payment_receipt
-        )));
+        return Err(
+            internal_rpc_err(format!("Proposer payment tx failed: {:?}", proposer_payment_receipt))
+        );
     }
 
     Ok(())
@@ -225,10 +241,11 @@ fn check_proposer_balance_change(
         Some(account) => account,
         None => return false,
     };
-    let fee_receiver_account_after = match fee_receiver_account_state.info.clone() {
-        Some(account) => account,
-        None => return false,
-    };
+    let fee_receiver_account_after =
+        match fee_receiver_account_state.info.clone() {
+            Some(account) => account,
+            None => return false,
+        };
     let fee_receiver_account_before = match fee_receiver_account_state.original_info.clone() {
         Some(account) => account,
         None => AccountInfo::default(), // TODO: In tests with the MockProvider this was None by default, check if this fallback is needed in production
@@ -253,60 +270,69 @@ where
         &self,
         request_body: ValidationRequestBody,
     ) -> RpcResult<()> {
-        tracing::debug!(block_hash = ?request_body.message.block_hash, "Received Validation Request");
-        let start = Instant::now();
-        let block = try_into_sealed_block(request_body.execution_payload.clone().into(), None)
-            .to_rpc_result().inspect_err(|e| {
-                tracing::error!(block_hash = ?request_body.message.block_hash, error = ?e, time_elapsed=start.elapsed().as_micros(), "Failed to parse block");
-            })?;
-        tracing::debug!(block_hash = ?request_body.message.block_hash, time_elapsed=start.elapsed().as_micros(), "Block parsed");
+        let start_time = Instant::now();
+        let request_id = Uuid::new_v4();
+        tracing::debug!(block_hash = ?request_body.message.block_hash, ?request_id, "Received Validation Request");
+        let block = trace_validation_step!(
+            try_into_sealed_block(request_body.execution_payload.clone().into(), None)
+                .to_rpc_result(),
+            "Block parsing",
+            start_time,
+            request_id
+        );
         let chain_spec = self.provider().chain_spec();
-        self.check_gas_limit(
-            &block.parent_hash,
-            request_body.registered_gas_limit,
-            block.gas_limit,
-        ).inspect_err(|e| {
-            tracing::error!(block_hash = ?request_body.message.block_hash, error = ?e, time_elapsed=start.elapsed().as_micros(), "Gas limit check failed");
-        })?;
-        tracing::debug!(block_hash = ?request_body.message.block_hash, time_elapsed=start.elapsed().as_micros(), "Gas limit checked");
+        trace_validation_step!(
+            self.check_gas_limit(
+                &block.parent_hash,
+                request_body.registered_gas_limit,
+                block.gas_limit,
+            ),
+            "Check Gas Limit",
+            start_time,
+            request_id
+        );
 
-        compare_all_values(&request_body.message, &block).inspect_err(|e| {
-            tracing::error!(block_hash = ?request_body.message.block_hash, error = ?e, time_elapsed=start.elapsed().as_micros(), "Message and payload values comparison failed");
-        })?;
-        tracing::debug!(block_hash = ?request_body.message.block_hash, time_elapsed=start.elapsed().as_micros(), "Message and payload values compared");
+        trace_validation_step!(
+            compare_all_values(&request_body.message, &block),
+            "Message / Payload comparison",
+            start_time,
+            request_id
+        );
 
-        full_validation(&block, self.provider(), &chain_spec).to_rpc_result().inspect_err(|e| {
-            tracing::error!(block_hash = ?request_body.message.block_hash, time_elapsed=start.elapsed().as_micros(), error = ?e, "Error during full validation");
-        })?;
-        tracing::debug!(block_hash = ?request_body.message.block_hash, time_elapsed=start.elapsed().as_micros(), "Full validation done");
+        trace_validation_step!(
+            full_validation(&block, self.provider(), &chain_spec).to_rpc_result(),
+            "Full validation",
+            start_time,
+            request_id
+        );
 
-        let state = self.execute_and_verify_block(&block, chain_spec.clone()).inspect_err(|e| {
-            tracing::error!(block_hash = ?request_body.message.block_hash, time_elapsed=start.elapsed().as_micros(), error = ?e, "Error executing block");
-        })?;
-        tracing::debug!(block_hash = ?request_body.message.block_hash, time_elapsed=start.elapsed().as_micros(), "Block executed and verified");
-
-        self.check_proposer_payment(
-            &block,
-            &state,
-            &request_body.message.value,
-            &request_body.message.proposer_fee_recipient,
-        ).inspect_err(|e| {
-            tracing::error!(block_hash = ?request_body.message.block_hash, time_elapsed=start.elapsed().as_micros(), error = ?e, "Error checking proposer payment");
-        })?;
-        tracing::debug!(block_hash = ?request_body.message.block_hash, time_elapsed=start.elapsed().as_micros(), "Proposer Payment verfieid");
+        let state =
+            trace_validation_step!(
+                self.execute_and_verify_block(&block, chain_spec.clone()),
+                "Execute and Verify Block",
+                start_time,
+                request_id
+            );
+        trace_validation_step!(
+            self.check_proposer_payment(
+                &block,
+                &state,
+                &request_body.message.value,
+                &request_body.message.proposer_fee_recipient,
+            ),
+            "Check Proposer Payment",
+            start_time,
+            request_id
+        );
         Ok(())
     }
 }
 
 fn compare_all_values(message: &BidTrace, block: &SealedBlock) -> RpcResult<()> {
-        compare_values(
-            "ParentHash",
-            message.parent_hash,
-            block.parent_hash,
-        )?;
-        compare_values("BlockHash", message.block_hash, block.hash())?;
-        compare_values("GasLimit", message.gas_limit, block.gas_limit)?;
-        compare_values("GasUsed", message.gas_used, block.gas_used)
+    compare_values("ParentHash", message.parent_hash, block.parent_hash)?;
+    compare_values("BlockHash", message.block_hash, block.hash())?;
+    compare_values("GasLimit", message.gas_limit, block.gas_limit)?;
+    compare_values("GasUsed", message.gas_used, block.gas_used)
 }
 
 impl<Provider> std::fmt::Debug for ValidationApi<Provider> {

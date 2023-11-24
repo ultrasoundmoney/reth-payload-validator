@@ -35,11 +35,12 @@ async fn test_valid_block() {
         generate_valid_request(&provider_factory, None);
     let client = get_client(provider_factory).await;
 
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -52,11 +53,12 @@ async fn test_registered_gas_limit_too_low_block() {
 
     validation_request_body.registered_gas_limit = 10_000;
 
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     println!("{:?}", result);
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     assert!(error_message.contains("Incorrect gas limit set"));
@@ -71,11 +73,12 @@ async fn test_invalid_state_root() {
     validation_request_body.execution_payload.state_root = B256::default();
     validation_request_body = seal_request_body(validation_request_body);
 
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     assert!(result.is_err());
 }
 
@@ -88,11 +91,12 @@ async fn test_block_number_too_high() {
     validation_request_body = seal_request_body(validation_request_body);
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     let expected_message = format!(
         "block number {:} does not match parent block number {:}",
         validation_request_body.execution_payload.block_number,
@@ -120,11 +124,12 @@ async fn test_block_number_already_known() {
     //     .is_some());
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     // TODO: Verify that this is expected behaviour (if not check if specific to mock provider)
     assert!(result.is_ok());
 }
@@ -146,11 +151,12 @@ async fn test_block_hash_already_known() {
     );
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     let expected_message = format!(
         "block with [hash={:?}, number={:}] is already known",
         validation_request_body.execution_payload.block_hash,
@@ -172,11 +178,12 @@ async fn test_incorrect_parent() {
     validation_request_body = seal_request_body(validation_request_body);
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     let expected_message = format!("Parent block with hash {:?} not found", new_parent_hash);
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     assert_eq!(error_message, expected_message);
@@ -234,11 +241,12 @@ async fn test_tx_nonce_too_low() {
     );
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     let expected_error_message = "transaction nonce is not consistent";
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     assert_eq!(error_message, expected_error_message);
@@ -285,11 +293,12 @@ async fn test_proposer_payment_validation_via_balance_change() {
         &provider_factory,
     ));
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -361,11 +370,12 @@ async fn test_proposer_spent_in_same_block() {
     ));
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     println!("result {:?}", result);
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     // Because the check based on the balance difference failed it will revert to checking the last
@@ -446,11 +456,12 @@ async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
     validation_request_body = seal_request_body(validation_request_body);
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
     assert!(result.is_ok());
 }
 
@@ -466,11 +477,12 @@ async fn test_insufficient_proposer_payment() {
 
     let client = get_client(provider_factory).await;
 
-    let result = ValidationApiClient::validate_builder_submission_v2(
-        &client,
-        validation_request_body.clone(),
-    )
-    .await;
+    let result =
+        ValidationApiClient::validate_builder_submission_v2(
+            &client,
+            validation_request_body.clone(),
+        )
+        .await;
 
     let expected_error_message = format!(
         "Proposer payment tx value {:} does not match expected payment {:}",
@@ -681,14 +693,15 @@ fn calculate_receipts_root(
         .collect::<Vec<ReceiptWithBloom>>();
     let receipts_root = reth::primitives::proofs::calculate_receipt_root(&receipts_with_bloom);
 
-    let new_block = Block {
-        header: Header {
-            gas_used: cumulative_gas_used,
-            receipts_root,
-            ..block.header.clone()
-        },
-        ..block.clone()
-    };
+    let new_block =
+        Block {
+            header: Header {
+                gas_used: cumulative_gas_used,
+                receipts_root,
+                ..block.header.clone()
+            },
+            ..block.clone()
+        };
 
     let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
     let mut block_executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db);

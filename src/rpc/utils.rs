@@ -1,7 +1,7 @@
 use crate::rpc::result::internal_rpc_err;
 use jsonrpsee::core::RpcResult;
-use std::cmp::Ordering;
 use reth_tracing::tracing;
+use std::cmp::Ordering;
 
 pub fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(
     name: &str,
@@ -9,10 +9,7 @@ pub fn compare_values<T: std::cmp::PartialEq + std::fmt::Display>(
     actual: T,
 ) -> RpcResult<()> {
     if expected != actual {
-        Err(internal_rpc_err(format!(
-            "incorrect {} {}, expected {}",
-            name, actual, expected
-        )))
+        Err(internal_rpc_err(format!("incorrect {} {}, expected {}", name, actual, expected)))
     } else {
         Ok(())
     }
