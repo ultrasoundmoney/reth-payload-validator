@@ -254,7 +254,10 @@ where
             .provider
             .header(parent_hash)
             .to_rpc_result()?
-            .ok_or(internal_rpc_err(format!("Parent block with hash {} not found", parent_hash)))?;
+            .ok_or(internal_rpc_err(format!(
+                "Parent block with hash {} not found",
+                parent_hash
+            )))?;
         tracing::debug!(parent_hash = %parent_hash, parent_gas_limit = parent.gas_limit, registered_gas_limit = registered_gas_limit, block_gas_limit = block_gas_limit, "Checking gas limit");
 
         // Prysm has a bug where it registers validators with a desired gas limit
@@ -289,13 +292,17 @@ fn check_proposer_payment_in_last_transaction(
     expected_payment: &U256,
 ) -> RpcResult<()> {
     if receipts.is_empty() || receipts[0].is_empty() {
-        return Err(internal_rpc_err("No receipts in block to verify proposer payment"));
+        return Err(internal_rpc_err(
+            "No receipts in block to verify proposer payment",
+        ));
     }
     let receipts = &receipts[0];
 
     let num_transactions = transactions.len();
     if num_transactions == 0 {
-        return Err(internal_rpc_err("No transactions in block to verify proposer payment"));
+        return Err(internal_rpc_err(
+            "No transactions in block to verify proposer payment",
+        ));
     }
     if num_transactions != receipts.len() {
         return Err(internal_rpc_err(format!(
@@ -326,9 +333,10 @@ fn check_proposer_payment_in_last_transaction(
         .clone()
         .ok_or_else(|| internal_rpc_err("Proposer payment receipt not found in block receipts"))?;
     if !proposer_payment_receipt.success {
-        return Err(
-            internal_rpc_err(format!("Proposer payment tx failed: {:?}", proposer_payment_receipt))
-        );
+        return Err(internal_rpc_err(format!(
+            "Proposer payment tx failed: {:?}",
+            proposer_payment_receipt
+        )));
     }
 
     Ok(())
@@ -343,11 +351,10 @@ fn check_proposer_balance_change(
         Some(account) => account,
         None => return false,
     };
-    let fee_receiver_account_after =
-        match fee_receiver_account_state.info.clone() {
-            Some(account) => account,
-            None => return false,
-        };
+    let fee_receiver_account_after = match fee_receiver_account_state.info.clone() {
+        Some(account) => account,
+        None => return false,
+    };
     let fee_receiver_account_before = match fee_receiver_account_state.original_info.clone() {
         Some(account) => account,
         None => AccountInfo::default(), // TODO: In tests with the MockProvider this was None by default, check if this fallback is needed in production
