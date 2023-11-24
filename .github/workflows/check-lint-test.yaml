@@ -21,7 +21,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
       - name: Install toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
@@ -29,13 +29,13 @@ jobs:
           cache-on-failure: true
 
       - name: cargo check
-        run: cargo check --all --all-features --benches --tests
+        run: cargo +nightly check --all --all-features --benches --tests
 
       - name: cargo fmt
-        run: cargo fmt --all --check
+        run: cargo +nightly fmt --all --check
 
       - name: cargo clippy
-        run: cargo clippy --all --all-features --benches --tests
+        run: cargo +nightly clippy --all --all-features --benches --tests
 
       - name: cargo test
-        run: cargo test
+        run: cargo +nightly test
