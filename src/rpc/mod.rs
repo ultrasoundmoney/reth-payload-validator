@@ -32,28 +32,6 @@ use utils::*;
 
 use std::time::Instant;
 
-macro_rules! trace_validation_step {
-    ($step:expr, $name:expr, $start_time: ident, $request_id: ident) => {
-        $step
-            .inspect_err(|error| {
-                tracing::debug!(
-                    ?$request_id,
-                    ?error,
-                    time_elapsed = $start_time.elapsed().as_micros(),
-                    "{}",
-                    $name.to_string() + " failed"
-                )
-            })
-            .inspect(|_| {
-                tracing::debug!(
-                    ?$request_id,
-                    time_elapsed = $start_time.elapsed().as_micros(),
-                    "{}",
-                    $name.to_string() + " succeeded"
-                )
-            })?
-    };
-}
 
 /// trait interface for a custom rpc namespace: `validation`
 ///
@@ -96,15 +74,41 @@ where
         request_id: &Uuid,
         start_time: &Instant,
     ) -> RpcResult<()> {
-        let block = trace_validation_step!(
-            try_into_sealed_block(request_body.execution_payload.clone().into(), None)
-                .to_rpc_result(),
+
+        fn trace_validation_step<T>(
+            result: RpcResult<T>,
+            name: &str,
+            start_time: &Instant,
+            request_id: &Uuid,
+        ) -> RpcResult<T> {
+            result
+                .inspect_err(|error| {
+                    tracing::debug!(
+                        ?request_id,
+                        ?error,
+                        time_elapsed = start_time.elapsed().as_micros(),
+                        "{}",
+                        name.to_string() + " failed"
+                    )
+                })
+                .inspect(|_| {
+                    tracing::debug!(
+                        ?request_id,
+                        time_elapsed = start_time.elapsed().as_micros(),
+                        "{}",
+                        name.to_string() + " succeeded"
+                    )
+                })
+        }
+
+        let block = trace_validation_step(
+            try_into_sealed_block(request_body.execution_payload.clone().into(), None).to_rpc_result(),
             "Block parsing",
             start_time,
             request_id
-        );
+        )?;
         let chain_spec = self.provider().chain_spec();
-        trace_validation_step!(
+        trace_validation_step(
             self.check_gas_limit(
                 &block.parent_hash,
                 request_body.registered_gas_limit,
@@ -113,30 +117,29 @@ where
             "Check Gas Limit",
             start_time,
             request_id
-        );
+        )?;
 
-        trace_validation_step!(
+        trace_validation_step(
             compare_all_values(&request_body.message, &block),
             "Message / Payload comparison",
             start_time,
             request_id
-        );
+        )?;
 
-        trace_validation_step!(
+        trace_validation_step(
             full_validation(&block, self.provider(), &chain_spec).to_rpc_result(),
             "Full validation",
             start_time,
             request_id
-        );
+        )?;
 
-        let state =
-            trace_validation_step!(
+        let state = trace_validation_step(
                 self.execute_and_verify_block(&block, chain_spec.clone()),
                 "Execute and Verify Block",
                 start_time,
                 request_id
-            );
-        trace_validation_step!(
+            )?;
+        trace_validation_step(
             self.check_proposer_payment(
                 &block,
                 &state,
@@ -146,7 +149,7 @@ where
             "Check Proposer Payment",
             start_time,
             request_id
-        );
+        )?;
         Ok(())
     }
 
