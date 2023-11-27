@@ -15,8 +15,8 @@ use reth::rpc::result::ToRpcResult;
 use reth_tracing::tracing;
 use uuid::Uuid;
 
-use crate::rpc::types::*;
 use crate::rpc::result::internal_rpc_err;
+use crate::rpc::types::*;
 use crate::rpc::utils::*;
 
 use std::time::Instant;
@@ -323,4 +323,3 @@ fn check_proposer_balance_change(
 
     fee_receiver_account_after.balance >= (fee_receiver_account_before.balance + expected_payment)
 }
-

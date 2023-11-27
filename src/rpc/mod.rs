@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
+use crate::ValidationApi;
 use reth::providers::{
-    AccountReader, BlockReaderIdExt, ChainSpecProvider,
-    HeaderProvider, StateProviderFactory, WithdrawalsProvider,
+    AccountReader, BlockReaderIdExt, ChainSpecProvider, HeaderProvider, StateProviderFactory,
+    WithdrawalsProvider,
 };
 use std::sync::Arc;
-use crate::ValidationApi;
 
 mod types;
 pub use types::*;
