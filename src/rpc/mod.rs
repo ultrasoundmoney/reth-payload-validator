@@ -222,7 +222,7 @@ where
     ) -> RpcResult<()> {
         let state_provider = self.provider.latest().to_rpc_result()?;
         let state_root = state_provider
-            .state_root(&state)
+            .state_root(state)
             .map_err(|e| internal_rpc_err(format!("Error computing state root: {e:?}")))?;
         if state_root != block.state_root {
             return Err(internal_rpc_err(format!(
