@@ -137,6 +137,10 @@ where
             "Execute and Verify Block",
         )?;
         self.trace_validation_step(
+            self.verify_state_root(&block, &state),
+            "Verify State Root",
+        )?;
+        self.trace_validation_step(
             self.check_proposer_payment(&block, &state),
             "Check Proposer Payment",
         )?;
@@ -211,8 +215,15 @@ where
             .execute_and_verify_receipt(&unsealed_block, U256::MAX, None)
             .map_err(|e| internal_rpc_err(format!("Error executing transactions: {:}", e)))?;
 
-        let state = executor.take_output_state();
+        Ok(executor.take_output_state())
+    }
 
+    fn verify_state_root(
+        &self,
+        block: &SealedBlock,
+        state: &BundleStateWithReceipts,
+    ) -> RpcResult<()> {
+        let state_provider = self.provider.latest().to_rpc_result()?;
         let state_root = state_provider
             .state_root(&state)
             .map_err(|e| internal_rpc_err(format!("Error computing state root: {e:?}")))?;
@@ -222,9 +233,9 @@ where
                 state_root, block.state_root
             )));
         }
-
-        Ok(state)
+        Ok(())
     }
+
 
     fn check_proposer_payment(
         &self,
