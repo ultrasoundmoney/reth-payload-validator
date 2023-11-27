@@ -136,10 +136,7 @@ where
             self.execute_and_verify_block(&block),
             "Execute and Verify Block",
         )?;
-        self.trace_validation_step(
-            self.verify_state_root(&block, &state),
-            "Verify State Root",
-        )?;
+        self.trace_validation_step(self.verify_state_root(&block, &state), "Verify State Root")?;
         self.trace_validation_step(
             self.check_proposer_payment(&block, &state),
             "Check Proposer Payment",
@@ -235,7 +232,6 @@ where
         }
         Ok(())
     }
-
 
     fn check_proposer_payment(
         &self,
