@@ -219,7 +219,7 @@ where
                 "Parent block with hash {} not found",
                 parent_hash
             )))?;
-        tracing::debug!(parent_hash = %parent_hash, parent_gas_limit = parent.gas_limit, registered_gas_limit = registered_gas_limit, block_gas_limit = block_gas_limit, "Checking gas limit");
+        tracing::debug!(request_id=self.request_id.to_string(), parent_hash = %parent_hash, parent_gas_limit = parent.gas_limit, registered_gas_limit = registered_gas_limit, block_gas_limit = block_gas_limit, "Checking gas limit");
 
         // Prysm has a bug where it registers validators with a desired gas limit
         // of 0. Some builders treat these as desiring gas limit 30_000_000. As a
@@ -230,15 +230,15 @@ where
         if registered_gas_limit == 0
             && block_gas_limit == calc_gas_limit(parent.gas_limit, 30_000_000)
         {
-            tracing::debug!(parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, "Registered gas limit is 0, accepting block with gas limit 30_000_000");
+            tracing::debug!(request_id=self.request_id.to_string(), parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, "Registered gas limit is 0, accepting block with gas limit 30_000_000");
             return Ok(());
         }
         let calculated_gas_limit = calc_gas_limit(parent.gas_limit, registered_gas_limit);
         if calculated_gas_limit == block_gas_limit {
-            tracing::debug!(parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, "Registered gas limit > 0, Correct gas limit set");
+            tracing::debug!(request_id=self.request_id.to_string(), parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, "Registered gas limit > 0, Correct gas limit set");
             return Ok(());
         }
-        tracing::debug!(parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, ?calculated_gas_limit, "Incorrect gas limit set");
+        tracing::debug!(request_id=self.request_id.to_string(), parent_hash = %parent_hash, ?registered_gas_limit, ?block_gas_limit, ?calculated_gas_limit, "Incorrect gas limit set");
         Err(internal_rpc_err(format!(
             "Incorrect gas limit set, expected: {}, got: {}",
             calculated_gas_limit, block_gas_limit
