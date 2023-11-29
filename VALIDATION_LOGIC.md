@@ -1,6 +1,26 @@
 # Validation Logic
 High level summary of the different steps in the Validation logic and comparison against [geth based implementation](https://github.com/ultrasoundmoney/builder/pull/1)
 
+# Summary:
+Generally the two implementations seem largely equivalent in the steps / checks that they do which are:
+1. Parsing Execution into node-specific block representation
+2. Comparing values that are duplicated between "Message" and "ExecutionPayload" fields for consistency
+3. Making sure that block header adheres to specifications of the currently active hardfork 
+4. Verifying that block parent is known and one block number prior to the number supplied in the request
+4. Decoding and executing all transactions
+5. Calculating various roots / hashes from block body and comparing them to the values specfied in the payload (transactions, receipts, state root, logs bloom)
+6. Verifying that the gas limit was set correctly both from a protocol perspective and also adhering to the proposer's registered limit
+7. Veriying that the proposer is paid the promised reward
+
+The main differences are:
+1. Different order of the different verification steps
+2. Reth implementation should be easier adapt to upcoming Cancun update as most logic is already adapted on reth.
+3. Performance (see below)
+
+In the reth implementation the executing of the transactions as well as the calculation of the state root take up ca 90% of the total processing time which is currently significantly higher than that on geth. Therefore this should be the focus of further performance optimization.
+
+For a (hopefully) complete overview of the steps in each of the implementation see below sections.
+
 # Geth Logic
 1. Parse ExecutionPayload into node representation of a Block ([function call](https://github.com/ultrasoundmoney/builder/blob/aa8f1a597901f303551b21d2bbf637dea1205624/eth/block-validation/api.go#L124), [definition](https://github.com/ultrasoundmoney/builder/blob/aa8f1a597901f303551b21d2bbf637dea1205624/beacon/engine/types.go#L276)
     1.  Decode Transactions ([call](https://github.com/ultrasoundmoney/builder/blob/aa8f1a597901f303551b21d2bbf637dea1205624/beacon/engine/types.go#L282), [implementation](https://github.com/ultrasoundmoney/builder/blob/aa8f1a597901f303551b21d2bbf637dea1205624/beacon/engine/types.go#L145)
