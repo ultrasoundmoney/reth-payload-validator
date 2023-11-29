@@ -40,3 +40,43 @@ High level summary of the different steps in the Validation logic and comparison
         4. Compare StateRoot (this seems to be the equivalent to the step that takes 70ms on our side - TODO: Compare implementations) ([implementation](https://github.com/ultrasoundmoney/builder/blob/aa8f1a597901f303551b21d2bbf637dea1205624/core/block_validator.go#L114-L116))
     8. Verfiy Proposer Payment (TODO: There are a few additional checks regarding malformed proposer payment - Check if we need this too) ([implementation](https://github.com/ultrasoundmoney/builder/blob/aa8f1a597901f303551b21d2bbf637dea1205624/core/blockchain.go#L2559-L2612))
 
+# Reth Logic
+1. Check that gas limit is correct with respect to the value set by the Validator ([call](https://github.com/ckoopmann/reth-block-validator/blob/f632700f71db16f3797152dcf9fe309cde72afce/src/rpc/validation.rs#L78), [implementation](https://github.com/ckoopmann/reth-block-validator/blob/f632700f71db16f3797152dcf9fe309cde72afce/src/rpc/validation.rs#L224-L245))
+2. Compare Execution Payload with `Message` values. ([call](https://github.com/ckoopmann/reth-block-validator/blob/f632700f71db16f3797152dcf9fe309cde72afce/src/rpc/validation.rs#L81), [implementation](https://github.com/ckoopmann/reth-block-validator/blob/f632700f71db16f3797152dcf9fe309cde72afce/src/rpc/validation.rs#L122))
+3. Parse ExecutionPayload into node representation of a Block ([call](https://github.com/ckoopmann/reth-block-validator/blob/f632700f71db16f3797152dcf9fe309cde72afce/src/rpc/validation.rs#L85)), which includes:
+    1. Check if "extra data" is > 32 bytes ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/rpc/rpc-types-compat/src/engine/payload.rs#L15))
+    1. Check that base_fee_per_gas is >= minimum value of 7 ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/rpc/rpc-types-compat/src/engine/payload.rs#L19))
+    1. Decoding Transactions and calculating root([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/rpc/rpc-types-compat/src/engine/payload.rs#L23))
+    1. Calculating withdrawals root ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/rpc/rpc-types-compat/src/engine/payload.rs#L72))
+1. Use reth built in "full_validation" method to do various validations ([call](https://github.com/ckoopmann/reth-block-validator/blob/f632700f71db16f3797152dcf9fe309cde72afce/src/rpc/validation.rs#L87)) - includes:
+    1. Verify Header (standalone):
+        1. Check that `gasUsed <= gasLimit` ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L22))
+        2. Check that baseFee is set ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L30))
+        3. Check that withdrawals root is set ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L38))
+        4. Check that EIP-4844 data is (not) set based on wether Cancun is active ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L49)
+   1. Verify Block (standalone):
+        1. Check that Ommers hash is set correctly ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L206))
+        2. Check that transactions_root is correct (probably don't need this because we generated this from the trnasactions in the first place / TODO: Make sure that we actually verify that changing the transactions root in the payload leads to failure) ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L214))
+        3. Check that withdrawals root is correct (see above) ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L222))
+        4. Check that blob gas is correct (inactive until Cancun)([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L239))
+    1. Validate Block (regarding chain):
+        1. Check that block is not already known (only checking for hash / what if block with this number is already known ?)([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L373))
+        2. Check that parent block is known (Only checking for hash / what if parent is known but it is not the current tip (i.e. `parent.block_number != block_number - 1`)([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L378))
+    1. Validate Header (regarding parent):
+        1. Check that `parent.block_number == block_number - 1`([implemntation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L294))
+        2. Check that `parent.hash = block.parent_hash`. (probably not necessary since we retrieved the parent block using the hash)([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L301)
+        3. Check that timestamp did not decrease ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L308))
+        4. Check gas_limit calculation with respect to its parent (probably unnecessary since this check is duplicated by our check which also takes proposer configured limit into consideration) ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L256))
+        5. Check that base fee is calculated correctly ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L331C1-L331C1))
+        6. EIP-4844 header validation (currently inactive) ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L353))
+    1. EC-Recover sender addresses from tx signatures ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L398))
+    1. Validate transactions. Does the following for each tx:
+        1. Validate Transaction regarding header:
+            1. Check that transaction does not contain fields that are not applicable at the current hardfork (EIP-155: chain_id, 2930: access list, 1559: priority_gas_fee)([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L72))
+            1. Check that priority_gas_fee is not higher than max_gas_fee ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L115))
+            1. Check that chain_id is set correctly ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L125))
+            1. Check that `max_fee >= base_fee`: ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L132))
+        1. Check that signer account does not have bytecode (VERIFY: probably not necessary since there is no way to sign a transaction with a smart contract account)([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L174)
+        2. Check that nonce is correct ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L187))
+        
+
