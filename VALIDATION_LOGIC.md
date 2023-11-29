@@ -78,5 +78,18 @@ High level summary of the different steps in the Validation logic and comparison
             1. Check that `max_fee >= base_fee`: ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L132))
         1. Check that signer account does not have bytecode (VERIFY: probably not necessary since there is no way to sign a transaction with a smart contract account)([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L174)
         2. Check that nonce is correct ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/consensus/common/src/validation.rs#L187))
+1. Execute / Verify Block
+    1. Execute Transactions ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/revm/src/processor.rs#L438))
+    1. Verify that `block.cumulative_gas_used` is correct ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/revm/src/processor.rs#L297C14-L297C14))
+    1. Apply post-execution state changes (block rewards etc) ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/revm/src/processor.rs#L210))
+    2. Check Receipts Root ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/revm/src/processor.rs#L546))
+    3. Check Log Bloom ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/revm/src/processor.rs#L554))
+1. Verify State Root([call](https://github.com/ckoopmann/reth-block-validator/blob/aa1a4b848fc31c8a0a7cd14d16681547759ffb3d/src/rpc/validation.rs#L93), [implementation](https://github.com/ckoopmann/reth-block-validator/blob/aa1a4b848fc31c8a0a7cd14d16681547759ffb3d/src/rpc/validation.rs#L172))
+    1. Calling `state_root` on the "LatestStateProvider" (verify that this is actually the implementation that is called) ([call](https://github.com/ckoopmann/reth-block-validator/blob/aa1a4b848fc31c8a0a7cd14d16681547759ffb3d/src/rpc/validation.rs#L179), [implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/storage/provider/src/providers/state/latest.rs#L63)
+        1. Calling `state_root_slow` on `BundleState` (TODO: name suggests that this might be a performance bottle neck - evaluate) ([implementation](https://github.com/paradigmxyz/reth/blob/9fe3b02c2133ee27e79e0c9bfea92b174891bb81/crates/storage/provider/src/bundle_state/bundle_state_with_receipts.rs#L213C17-L213C17))
+1. Verify Proposer Payment (Logic is copied from geth implementation so should be equivalent) ([call](https://github.com/ckoopmann/reth-block-validator/blob/aa1a4b848fc31c8a0a7cd14d16681547759ffb3d/src/rpc/validation.rs#L95), [implementation](https://github.com/ckoopmann/reth-block-validator/blob/aa1a4b848fc31c8a0a7cd14d16681547759ffb3d/src/rpc/validation.rs#L190) 
+    1. Check if proposer-balance change (from beginning to end of block)  is at least as large as the promised payment ([implementation](https://github.com/ckoopmann/reth-block-validator/blob/aa1a4b848fc31c8a0a7cd14d16681547759ffb3d/src/rpc/validation.rs#L311))
+    1. If previous step failed (balance check), check if the  last tx is a valid transfer of the promised payment to the proposer([implementation](https://github.com/ckoopmann/reth-block-validator/blob/aa1a4b848fc31c8a0a7cd14d16681547759ffb3d/src/rpc/validation.rs#L249)
+
         
 
