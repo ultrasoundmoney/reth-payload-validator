@@ -247,7 +247,7 @@ where
 }
 
 fn check_proposer_payment_in_last_transaction(
-    transactions: &Vec<TransactionSigned>,
+    transactions: &[TransactionSigned],
     receipts: &Receipts,
     fee_recipient: &Address,
     expected_payment: &U256,
