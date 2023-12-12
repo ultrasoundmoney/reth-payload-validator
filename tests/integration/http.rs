@@ -15,13 +15,9 @@ use reth::providers::{
 };
 use reth::revm::{database::StateProviderDatabase, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_block;
-use reth_db::tables;
-use reth_db::transaction::DbTx;
-use reth_db::transaction::DbTxMut;
-use reth_db::{
-    mdbx::{Env, WriteMap},
-    test_utils::{create_test_rw_db, TempDatabase},
-};
+use reth_db::test_utils::{create_test_rw_db, TempDatabase};
+use reth_db::transaction::{DbTx, DbTxMut};
+use reth_db::{tables, DatabaseEnv};
 use reth_payload_validator::rpc::{
     ValidationApiClient, ValidationApiServer, ValidationRequestBody,
 };
@@ -30,7 +26,7 @@ use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-type TestProviderFactory = ProviderFactory<Arc<TempDatabase<Env<WriteMap>>>>;
+type TestProviderFactory = ProviderFactory<Arc<TempDatabase<DatabaseEnv>>>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_valid_block() {
