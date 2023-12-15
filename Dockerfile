@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get -y upgrade && apt-get install -y libclang-dev pkg-config
 
 COPY Cargo.toml Cargo.lock ./
+RUN rustup install nightly
 RUN mkdir src/
 RUN echo "fn main() {}" > dummy.rs
 RUN sed -i 's#src/main.rs#dummy.rs#' Cargo.toml
