@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use crate::ValidationApi;
@@ -20,14 +19,10 @@ use validation::ValidationRequest;
 ///
 /// This defines an additional namespace where all methods are configured as trait functions.
 #[rpc(client, server, namespace = "flashbots")]
-#[async_trait]
 pub trait ValidationApi {
     /// Validates a block submitted to the relay
-    #[method(name = "validateBuilderSubmissionV2")]
-    async fn validate_builder_submission_v2(
-        &self,
-        request_body: ValidationRequestBody,
-    ) -> RpcResult<()>;
+    #[method(name = "validateBuilderSubmissionV2", blocking)]
+    fn validate_builder_submission_v2(&self, request_body: ValidationRequestBody) -> RpcResult<()>;
 }
 
 impl<Provider> ValidationApi<Provider>
@@ -52,7 +47,6 @@ where
     }
 }
 
-#[async_trait]
 impl<Provider> ValidationApiServer for ValidationApi<Provider>
 where
     Provider: BlockReaderIdExt
@@ -64,12 +58,9 @@ where
         + 'static,
 {
     /// Validates a block submitted to the relay
-    async fn validate_builder_submission_v2(
-        &self,
-        request_body: ValidationRequestBody,
-    ) -> RpcResult<()> {
+    fn validate_builder_submission_v2(&self, request_body: ValidationRequestBody) -> RpcResult<()> {
         let request = ValidationRequest::new(request_body, self.provider());
-        request.validate().await
+        request.validate()
     }
 }
 

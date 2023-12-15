@@ -55,9 +55,8 @@ where
         + WithdrawalsProvider
         + 'static,
 {
-    pub async fn validate(&self) -> RpcResult<()> {
+    pub fn validate(&self) -> RpcResult<()> {
         self.validate_inner()
-            .await
             .inspect_err(|error| {
                 tracing::warn!(
                     request_id = self.request_id.to_string(),
@@ -74,7 +73,8 @@ where
                 );
             })
     }
-    async fn validate_inner(&self) -> RpcResult<()> {
+
+    fn validate_inner(&self) -> RpcResult<()> {
         self.trace_validation_step(self.check_gas_limit(), "Check Gas Limit")?;
 
         self.trace_validation_step(
