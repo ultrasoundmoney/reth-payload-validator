@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+    pull_request:
 
 jobs:
   docker:
@@ -27,8 +28,21 @@ jobs:
       - name: Extract short SHA
         run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c 1-7)" >> $GITHUB_ENV
 
+      - name: Build (without push)
+        uses: docker/build-push-action@v5
+        if: github.event_name == 'pull_request'
+        with:
+          context: .
+          push: false
+          tags: |
+            ultrasoundorg/payload-validator:${{ env.SHORT_SHA }}
+            ultrasoundorg/payload-validator:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build and push
         uses: docker/build-push-action@v5
+        if: github.event_name == 'pull_request'
         with:
           context: .
           push: true
