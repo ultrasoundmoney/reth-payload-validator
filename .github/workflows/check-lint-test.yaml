@@ -39,3 +39,25 @@ jobs:
 
       - name: cargo test
         run: cargo +nightly test
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract short SHA
+        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c 1-7)" >> $GITHUB_ENV
+
+      - name: Build (without push)
+        uses: docker/build-push-action@v5
+        if: github.event_name == 'pull_request'
+        with:
+          context: .
+          push: false
+          tags: |
+            ultrasoundorg/payload-validator:${{ env.SHORT_SHA }}
+            ultrasoundorg/payload-validator:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
