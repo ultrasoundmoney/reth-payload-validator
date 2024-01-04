@@ -1,5 +1,7 @@
+use crate::rpc::result::internal_rpc_err;
+use crate::rpc::types::*;
+use crate::rpc::utils::*;
 use jsonrpsee::core::RpcResult;
-
 use reth::consensus_common::validation::full_validation;
 use reth::primitives::{
     revm_primitives::AccountInfo, Address, Receipts, SealedBlock, TransactionSigned, U256,
@@ -11,28 +13,22 @@ use reth::providers::{
 use reth::revm::{database::StateProviderDatabase, db::BundleState, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_sealed_block;
 use reth::rpc::result::ToRpcResult;
-
 use reth_tracing::tracing;
+use std::time::Instant;
 use uuid::Uuid;
 
-use crate::rpc::result::internal_rpc_err;
-use crate::rpc::types::*;
-use crate::rpc::utils::*;
-
-use std::time::Instant;
-
-pub struct ValidationRequest<'a, Provider> {
+pub struct ValidationRequest<Provider> {
     request_id: Uuid,
     start_time: Instant,
     request_body: ValidationRequestBody,
-    provider: &'a Provider,
+    provider: Provider,
 }
 
-impl<'a, Provider> ValidationRequest<'a, Provider> {
+impl<Provider> ValidationRequest<Provider> {
     pub fn new(
         request_body: ValidationRequestBody,
-        provider: &'a Provider,
-    ) -> ValidationRequest<'a, Provider> {
+        provider: Provider,
+    ) -> ValidationRequest<Provider> {
         let request_id = Uuid::new_v4();
         let start_time = Instant::now();
         tracing::info!(block_hash = ?request_body.message.block_hash, ?request_id, "Received Validation Request");
@@ -45,7 +41,7 @@ impl<'a, Provider> ValidationRequest<'a, Provider> {
     }
 }
 
-impl<Provider> ValidationRequest<'_, Provider>
+impl<Provider> ValidationRequest<Provider>
 where
     Provider: BlockReaderIdExt
         + ChainSpecProvider
@@ -55,9 +51,8 @@ where
         + WithdrawalsProvider
         + 'static,
 {
-    pub async fn validate(&self) -> RpcResult<()> {
+    pub fn validate(&self) -> RpcResult<()> {
         self.validate_inner()
-            .await
             .inspect_err(|error| {
                 tracing::warn!(
                     request_id = self.request_id.to_string(),
@@ -74,7 +69,8 @@ where
                 );
             })
     }
-    async fn validate_inner(&self) -> RpcResult<()> {
+
+    fn validate_inner(&self) -> RpcResult<()> {
         self.trace_validation_step(self.check_gas_limit(), "Check Gas Limit")?;
 
         self.trace_validation_step(
@@ -148,7 +144,7 @@ where
     }
 
     fn validate_header(&self, block: &SealedBlock) -> RpcResult<()> {
-        full_validation(block, self.provider, &self.provider.chain_spec()).to_rpc_result()
+        full_validation(block, &self.provider, &self.provider.chain_spec()).to_rpc_result()
     }
 
     fn execute_and_verify_block(&self, block: &SealedBlock) -> RpcResult<BundleStateWithReceipts> {
