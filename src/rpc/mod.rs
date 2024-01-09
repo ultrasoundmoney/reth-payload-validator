@@ -1,33 +1,24 @@
+pub use crate::rpc::api::{ValidationApiClient, ValidationApiServer};
 use async_trait::async_trait;
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-
-use crate::ValidationApi;
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::types::error::ErrorCode;
 use reth::providers::{
     AccountReader, BlockReaderIdExt, ChainSpecProvider, HeaderProvider, StateProviderFactory,
     WithdrawalsProvider,
 };
 use std::sync::Arc;
-
-mod types;
 pub use types::*;
-
-mod result;
-mod utils;
-mod validation;
 use validation::ValidationRequest;
 
-/// trait interface for a custom rpc namespace: `validation`
-///
-/// This defines an additional namespace where all methods are configured as trait functions.
-#[rpc(client, server, namespace = "flashbots")]
-#[async_trait]
-pub trait ValidationApi {
-    /// Validates a block submitted to the relay
-    #[method(name = "validateBuilderSubmissionV2")]
-    async fn validate_builder_submission_v2(
-        &self,
-        request_body: ValidationRequestBody,
-    ) -> RpcResult<()>;
+mod api;
+mod result;
+mod types;
+mod utils;
+mod validation;
+
+/// The type that implements the `validation` rpc namespace trait
+pub struct ValidationApi<Provider> {
+    inner: Arc<ValidationApiInner<Provider>>,
 }
 
 impl<Provider> ValidationApi<Provider>
@@ -38,11 +29,12 @@ where
         + HeaderProvider
         + AccountReader
         + WithdrawalsProvider
+        + Clone
         + 'static,
 {
     /// The provider that can interact with the chain.
-    pub fn provider(&self) -> &Provider {
-        &self.inner.provider
+    pub fn provider(&self) -> Provider {
+        self.inner.provider.clone()
     }
 
     /// Create a new instance of the [ValidationApi]
@@ -61,6 +53,7 @@ where
         + HeaderProvider
         + AccountReader
         + WithdrawalsProvider
+        + Clone
         + 'static,
 {
     /// Validates a block submitted to the relay
@@ -69,7 +62,9 @@ where
         request_body: ValidationRequestBody,
     ) -> RpcResult<()> {
         let request = ValidationRequest::new(request_body, self.provider());
-        request.validate().await
+        tokio::task::spawn_blocking(move || request.validate())
+            .await
+            .map_err(|_| ErrorCode::InternalError)?
     }
 }
 
