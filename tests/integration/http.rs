@@ -672,8 +672,12 @@ fn calculate_receipts_root(
     let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
 
     let mut executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db);
+    let block_with_senders = block
+        .clone()
+        .with_recovered_senders()
+        .expect("failed to recover senders");
     let (receipts, cumulative_gas_used) = executor
-        .execute_transactions(block, U256::MAX, None)
+        .execute_transactions(&block_with_senders, U256::MAX)
         .unwrap();
     let receipts_with_bloom = receipts
         .iter()
@@ -688,12 +692,14 @@ fn calculate_receipts_root(
             ..block.header.clone()
         },
         ..block.clone()
-    };
+    }
+    .with_recovered_senders()
+    .expect("failed to recover senders");
 
     let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
     let mut block_executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db);
     block_executor
-        .execute_and_verify_receipt(&new_block, U256::MAX, None)
+        .execute_and_verify_receipt(&new_block, U256::MAX)
         .unwrap();
     let state = block_executor.take_output_state();
 

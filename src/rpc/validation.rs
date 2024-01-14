@@ -154,12 +154,19 @@ where
         let mut executor =
             EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(&state_provider));
 
-        let unsealed_block = block.clone().unseal();
+        let unsealed_block =
+            block
+                .clone()
+                .unseal()
+                .with_recovered_senders()
+                .ok_or(internal_rpc_err(
+                    "Error recovering senders from block, cannot execute block",
+                ))?;
         // Note: Setting total difficulty to U256::MAX makes this incompatible with pre merge POW
         // blocks
         // TODO: Check what exactly the "senders" argument is and if we can set it to None here
         executor
-            .execute_and_verify_receipt(&unsealed_block, U256::MAX, None)
+            .execute_and_verify_receipt(&unsealed_block, U256::MAX)
             .map_err(|e| internal_rpc_err(format!("Error executing transactions: {:}", e)))?;
 
         Ok(executor.take_output_state())
