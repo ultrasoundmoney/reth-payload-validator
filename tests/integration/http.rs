@@ -35,7 +35,7 @@ async fn test_valid_block() {
         generate_valid_request(&provider_factory, None);
     let client = get_client(provider_factory).await;
 
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -52,7 +52,7 @@ async fn test_registered_gas_limit_too_low_block() {
 
     validation_request_body.registered_gas_limit = 10_000;
 
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -71,7 +71,7 @@ async fn test_invalid_state_root() {
     validation_request_body.execution_payload.state_root = B256::default();
     validation_request_body = seal_request_body(validation_request_body);
 
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -88,7 +88,7 @@ async fn test_block_number_too_high() {
     validation_request_body = seal_request_body(validation_request_body);
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -120,7 +120,7 @@ async fn test_block_number_already_known() {
     //     .is_some());
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -146,7 +146,7 @@ async fn test_block_hash_already_known() {
     );
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -172,7 +172,7 @@ async fn test_incorrect_parent() {
     validation_request_body = seal_request_body(validation_request_body);
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -234,7 +234,7 @@ async fn test_tx_nonce_too_low() {
     );
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -285,7 +285,7 @@ async fn test_proposer_payment_validation_via_balance_change() {
         &provider_factory,
     ));
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -361,7 +361,7 @@ async fn test_proposer_spent_in_same_block() {
     ));
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -446,7 +446,7 @@ async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
     validation_request_body = seal_request_body(validation_request_body);
 
     let client = get_client(provider_factory).await;
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -466,7 +466,7 @@ async fn test_insufficient_proposer_payment() {
 
     let client = get_client(provider_factory).await;
 
-    let result = ValidationApiClient::validate_builder_submission_v2(
+    let result = ValidationApiClient::validate_builder_submission_v3(
         &client,
         validation_request_body.clone(),
     )
@@ -489,7 +489,7 @@ async fn test_wrong_hash() {
 
     let client = get_client(provider_factory).await;
     let result =
-        ValidationApiClient::validate_builder_submission_v2(&client, validation_request_body).await;
+        ValidationApiClient::validate_builder_submission_v3(&client, validation_request_body).await;
     let error_message = get_call_error_message(result.unwrap_err()).unwrap();
     assert!(error_message.contains("block hash mismatch"));
 }

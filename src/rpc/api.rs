@@ -8,8 +8,8 @@ use jsonrpsee::proc_macros::rpc;
 #[rpc(client, server, namespace = "flashbots")]
 pub trait ValidationApi {
     /// Validates a block submitted to the relay
-    #[method(name = "validateBuilderSubmissionV2")]
-    async fn validate_builder_submission_v2(
+    #[method(name = "validateBuilderSubmissionV3")]
+    async fn validate_builder_submission_v3(
         &self,
         request_body: ValidationRequestBody,
     ) -> RpcResult<()>;

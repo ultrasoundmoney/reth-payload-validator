@@ -15,6 +15,7 @@ pub struct ValidationRequestBody {
     pub signature: Bytes,
     #[serde_as(as = "DisplayFromStr")]
     pub registered_gas_limit: u64,
+    #[serde(default)]
     pub parent_beacon_block_root: Option<B256>,
 }
 

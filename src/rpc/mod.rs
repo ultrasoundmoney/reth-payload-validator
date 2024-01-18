@@ -57,7 +57,7 @@ where
         + 'static,
 {
     /// Validates a block submitted to the relay
-    async fn validate_builder_submission_v2(
+    async fn validate_builder_submission_v3(
         &self,
         request_body: ValidationRequestBody,
     ) -> RpcResult<()> {
