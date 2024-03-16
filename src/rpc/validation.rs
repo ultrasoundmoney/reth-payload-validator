@@ -139,8 +139,11 @@ where
     }
 
     fn parse_block(&self) -> RpcResult<SealedBlock> {
-        try_into_sealed_block(self.request_body.execution_payload.clone().into(), self.request_body.parent_beacon_block_root)
-            .to_rpc_result()
+        try_into_sealed_block(
+            self.request_body.execution_payload.clone().into(),
+            self.request_body.parent_beacon_block_root,
+        )
+        .to_rpc_result()
     }
 
     fn validate_header(&self, block: &SealedBlock) -> RpcResult<()> {
