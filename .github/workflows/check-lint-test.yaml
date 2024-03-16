@@ -21,7 +21,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
       - name: Install toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
@@ -29,16 +29,16 @@ jobs:
           cache-on-failure: true
 
       - name: cargo check
-        run: cargo +nightly check --all --all-features --benches --tests
+        run: cargo check --all --all-features --benches --tests
 
       - name: cargo fmt
-        run: cargo +nightly fmt --all --check
+        run: cargo fmt --all --check
 
       - name: cargo clippy
-        run: cargo +nightly clippy --all --all-features --benches --tests
+        run: cargo clippy --all --all-features --benches --tests
 
       - name: cargo test
-        run: cargo +nightly test
+        run: cargo test
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
