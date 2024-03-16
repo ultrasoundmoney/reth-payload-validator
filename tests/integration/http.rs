@@ -8,7 +8,7 @@ use reth::primitives::{
     keccak256, sign_message,
     stage::{StageCheckpoint, StageId},
     AccessList, Account, Address, Block, Bytes, Header, ReceiptWithBloom, Transaction,
-    TransactionKind, TransactionSigned, TxEip1559, B256, MAINNET, U256,
+    TransactionKind, TransactionSigned, TxEip1559, B256, GOERLI, U256,
 };
 use reth::providers::{
     providers::BlockchainProvider, BlockExecutor, ProviderFactory, StateRootProvider,
@@ -109,7 +109,7 @@ async fn test_block_number_already_known() {
         generate_valid_request(&provider_factory, None);
     let block = try_into_block(
         validation_request_body.execution_payload.clone().into(),
-        None,
+        Some(B256::with_last_byte(0x69)),
     )
     .expect("failed to create block");
     add_block_with_hash(&provider_factory, B256::random(), block);
@@ -136,7 +136,7 @@ async fn test_block_hash_already_known() {
         generate_valid_request(&provider_factory, None);
     let block = try_into_block(
         validation_request_body.execution_payload.clone().into(),
-        None,
+        Some(B256::with_last_byte(0x69)),
     )
     .expect("failed to create block");
     add_block_with_hash(
@@ -203,7 +203,7 @@ async fn test_tx_nonce_too_low() {
     let other_transaction = sign_transaction(
         &sender_secret_key,
         Transaction::Eip1559(TxEip1559 {
-            chain_id: 1,
+            chain_id: 5,
             nonce: 0, // Invalid Tx because nonce is too low
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
@@ -265,7 +265,7 @@ async fn test_proposer_payment_validation_via_balance_change() {
     let other_transaction = sign_transaction(
         &sender_secret_key,
         Transaction::Eip1559(TxEip1559 {
-            chain_id: 1,
+            chain_id: 5,
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
@@ -327,7 +327,7 @@ async fn test_proposer_spent_in_same_block() {
     let spend_proposer_payment_tx = sign_transaction(
         &recipient_private_key,
         Transaction::Eip1559(TxEip1559 {
-            chain_id: 1,
+            chain_id: 5,
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
@@ -342,7 +342,7 @@ async fn test_proposer_spent_in_same_block() {
     let other_transaction = sign_transaction(
         &sender_secret_key,
         Transaction::Eip1559(TxEip1559 {
-            chain_id: 1,
+            chain_id: 5,
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
@@ -405,7 +405,7 @@ async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
     let spend_proposer_payment_tx = sign_transaction(
         &recipient_private_key,
         Transaction::Eip1559(TxEip1559 {
-            chain_id: 1,
+            chain_id: 5,
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
@@ -420,7 +420,7 @@ async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
     let other_transaction = sign_transaction(
         &sender_secret_key,
         Transaction::Eip1559(TxEip1559 {
-            chain_id: 1,
+            chain_id: 5,
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
@@ -563,7 +563,7 @@ fn generate_valid_request(
     let proposer_payment_transaction = sign_transaction(
         &sender_secret_key,
         Transaction::Eip1559(TxEip1559 {
-            chain_id: 1,
+            chain_id: 5,
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(fee_recipient),
@@ -590,10 +590,10 @@ fn generate_block(gas_limit: u64, base_fee_per_gas: u64) -> Block {
     let payload = reth_payload_validator::rpc::ExecutionPayloadValidation {
         gas_limit,
         base_fee_per_gas: U256::from(base_fee_per_gas),
-        block_number: 18469910,
+        block_number: 19447300,
         ..Default::default()
     };
-    try_into_block(payload.clone().into(), None).expect("failed to create block")
+    try_into_block(payload.clone().into(), Some(B256::with_last_byte(0x69))).expect("failed to create block")
 }
 
 fn generate_validation_request_body(
@@ -617,6 +617,8 @@ fn generate_validation_request_body(
     validation_request_body.message.value = U256::from(proposer_fee);
     validation_request_body.message.proposer_fee_recipient = fee_recipient;
     validation_request_body.registered_gas_limit = 1_000_000;
+    validation_request_body.parent_beacon_block_root = Some(B256::with_last_byte(0x69));
+
 
     seal_request_body(add_transactions(
         validation_request_body,
@@ -641,7 +643,7 @@ fn add_transactions(
         .append(&mut encoded_transactions);
     let block = try_into_block(
         validation_request_body.execution_payload.clone().into(),
-        None,
+        Some(B256::with_last_byte(0x69)),
     )
     .expect("failed to create block");
     let (receipts_root, cumulative_gas_used, state_root) =
@@ -656,7 +658,7 @@ fn add_transactions(
 fn seal_request_body(mut validation_request_body: ValidationRequestBody) -> ValidationRequestBody {
     let block = try_into_block(
         validation_request_body.execution_payload.clone().into(),
-        None,
+        Some(B256::with_last_byte(0x69)),
     )
     .expect("failed to create block");
     let sealed_block = block.seal_slow();
@@ -668,7 +670,7 @@ fn calculate_receipts_root(
     block: &Block,
     provider_factory: &TestProviderFactory,
 ) -> (B256, u64, B256) {
-    let chain_spec = MAINNET.clone();
+    let chain_spec = GOERLI.clone();
     let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
 
     let mut executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db);
@@ -728,7 +730,7 @@ fn sign_transaction(secret_key: &SecretKey, transaction: Transaction) -> Transac
 
 fn get_provider_factory() -> TestProviderFactory {
     let db = create_test_rw_db();
-    ProviderFactory::new(db, MAINNET.clone())
+    ProviderFactory::new(db, GOERLI.clone())
 }
 
 fn add_account(provider_factory: &TestProviderFactory, address: Address, account: Account) {
