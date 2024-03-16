@@ -593,7 +593,8 @@ fn generate_block(gas_limit: u64, base_fee_per_gas: u64) -> Block {
         block_number: 19447300,
         ..Default::default()
     };
-    try_into_block(payload.clone().into(), Some(B256::with_last_byte(0x69))).expect("failed to create block")
+    try_into_block(payload.clone().into(), Some(B256::with_last_byte(0x69)))
+        .expect("failed to create block")
 }
 
 fn generate_validation_request_body(
@@ -618,7 +619,6 @@ fn generate_validation_request_body(
     validation_request_body.message.proposer_fee_recipient = fee_recipient;
     validation_request_body.registered_gas_limit = 1_000_000;
     validation_request_body.parent_beacon_block_root = Some(B256::with_last_byte(0x69));
-
 
     seal_request_body(add_transactions(
         validation_request_body,
