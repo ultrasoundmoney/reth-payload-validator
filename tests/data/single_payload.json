@@ -20,6 +20,8 @@
     "block_number": "17585076",
     "gas_limit": "30000000",
     "gas_used": "10241365",
+    "blob_gas_used": "10241365",
+    "excess_blob_gas": "10241365",
     "timestamp": "1688043143",
     "extra_data": "0x497427732046726565205265616c20457374617465",
     "base_fee_per_gas": "26097588307",
