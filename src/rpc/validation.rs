@@ -139,8 +139,11 @@ where
     }
 
     fn parse_block(&self) -> RpcResult<SealedBlock> {
-        try_into_sealed_block(self.request_body.execution_payload.clone().into(), None)
-            .to_rpc_result()
+        try_into_sealed_block(
+            self.request_body.execution_payload.clone().into(),
+            self.request_body.parent_beacon_block_root,
+        )
+        .to_rpc_result()
     }
 
     fn validate_header(&self, block: &SealedBlock) -> RpcResult<()> {
@@ -164,7 +167,6 @@ where
                 ))?;
         // Note: Setting total difficulty to U256::MAX makes this incompatible with pre merge POW
         // blocks
-        // TODO: Check what exactly the "senders" argument is and if we can set it to None here
         executor
             .execute_and_verify_receipt(&unsealed_block, U256::MAX)
             .map_err(|e| internal_rpc_err(format!("Error executing transactions: {:}", e)))?;
