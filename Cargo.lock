@@ -5266,6 +5266,8 @@ dependencies = [
  "jsonrpsee",
  "reth",
  "reth-db",
+ "reth-interfaces",
+ "reth-node-ethereum",
  "reth-tracing",
  "secp256k1 0.28.2",
  "serde",

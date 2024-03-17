@@ -26,6 +26,8 @@ jsonrpsee = "0.20.1"
 reth = { git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a" }
 reth-db = { features = ["test-utils"], git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a"}
 reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a"}
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a"}
+reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a"}
 secp256k1 = { version = "0.28.0", features = ["rand-std"] }
 serde = "1.0.188"
 serde_json = "1.0.107"

@@ -1,4 +1,4 @@
-pub use crate::rpc::api::{ValidationApiClient, ValidationApiServer};
+pub use crate::rpc::api::ValidationApiServer;
 use async_trait::async_trait;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::error::ErrorCode;

@@ -2,9 +2,9 @@ use crate::rpc::result::internal_rpc_err;
 use crate::rpc::types::*;
 use crate::rpc::utils::*;
 use jsonrpsee::core::RpcResult;
-use reth::consensus_common::validation::full_validation;
+use reth::consensus_common::validation::{validate_block_standalone, validate_header_standalone, validate_block_regarding_chain,  validate_all_transaction_regarding_block_and_nonces};
 use reth::primitives::{
-    revm_primitives::AccountInfo, Address, Receipts, SealedBlock, TransactionSigned, U256,
+    revm_primitives::AccountInfo, Address, Receipts, SealedBlock, TransactionSigned, U256, ChainSpec
 };
 use reth::providers::{
     AccountReader, BlockExecutor, BlockReaderIdExt, BundleStateWithReceipts, ChainSpecProvider,
@@ -14,6 +14,8 @@ use reth::revm::{database::StateProviderDatabase, db::BundleState, processor::EV
 use reth::rpc::compat::engine::payload::try_into_sealed_block;
 use reth::rpc::result::ToRpcResult;
 use reth_tracing::tracing;
+use reth_interfaces::{consensus::ConsensusError, RethResult};
+use reth_node_ethereum::EthEvmConfig;
 use std::time::Instant;
 use uuid::Uuid;
 
@@ -155,7 +157,7 @@ where
         let state_provider = self.provider.latest().to_rpc_result()?;
 
         let mut executor =
-            EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(&state_provider));
+            EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(&state_provider), EthEvmConfig::default());
 
         let unsealed_block =
             block
@@ -328,3 +330,33 @@ fn check_proposer_balance_change(
 
     fee_receiver_account_after.balance >= (fee_receiver_account_before.balance + expected_payment)
 }
+
+/// Full validation of block before execution.
+pub fn full_validation<Provider: HeaderProvider + AccountReader + WithdrawalsProvider>(
+    block: &SealedBlock,
+    provider: Provider,
+    chain_spec: &ChainSpec,
+) -> RethResult<()> {
+    validate_header_standalone(&block.header, chain_spec)?;
+    validate_block_standalone(block, chain_spec)?;
+    let _parent = validate_block_regarding_chain(block, &provider)?;
+
+    // TODO: This function was removed on reth side, double check effect on validation
+    // validate_header_regarding_parent(&parent, &block.header, chain_spec)?;
+
+    // NOTE: depending on the need of the stages, recovery could be done in different place.
+    let transactions = block
+        .body
+        .iter()
+        .map(|tx| tx.try_ecrecovered().ok_or(ConsensusError::TransactionSignerRecoveryError))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    validate_all_transaction_regarding_block_and_nonces(
+        transactions.iter(),
+        &block.header,
+        provider,
+        chain_spec,
+    )?;
+    Ok(())
+}
+
