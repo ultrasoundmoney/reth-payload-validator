@@ -15,16 +15,20 @@ use reth::providers::{
 };
 use reth::revm::{database::StateProviderDatabase, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_block;
-use reth_db::test_utils::{create_test_rw_db, TempDatabase};
+use reth_db::test_utils::TempDatabase;
 use reth_db::transaction::{DbTx, DbTxMut};
 use reth_db::{tables, DatabaseEnv};
 use reth_payload_validator::rpc::{
     ValidationApiClient, ValidationApiServer, ValidationRequestBody,
 };
 use reth_payload_validator::ValidationApi;
+use reth_provider::test_utils::create_test_provider_factory_with_chain_spec;
+use reth_node_ethereum::EthEvmConfig;
+
 use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use ruint::Uint;
 
 type TestProviderFactory = ProviderFactory<Arc<TempDatabase<DatabaseEnv>>>;
 
@@ -207,7 +211,7 @@ async fn test_tx_nonce_too_low() {
             nonce: 0, // Invalid Tx because nonce is too low
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
-            value: 1_000_000_u128.into(),
+            value: Uint::from(1_000_000),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -269,7 +273,7 @@ async fn test_proposer_payment_validation_via_balance_change() {
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
-            value: 1_000_000_u128.into(),
+            value: Uint::from(1_000_000),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -346,7 +350,7 @@ async fn test_proposer_spent_in_same_block() {
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
-            value: 1_000_000_u128.into(),
+            value: Uint::from(1_000_000),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -409,7 +413,7 @@ async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
-            value: amount_to_send.into(),
+            value: Uint::from(amount_to_send),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -424,7 +428,7 @@ async fn test_proposer_spent_in_same_block_but_payment_tx_last() {
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
-            value: 1_000_000_u128.into(),
+            value: Uint::from(1_000_000),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -567,7 +571,7 @@ fn generate_valid_request(
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(fee_recipient),
-            value: proposer_payment.into(),
+            value: Uint::from(proposer_payment),
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -673,7 +677,7 @@ fn calculate_receipts_root(
     let chain_spec = GOERLI.clone();
     let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
 
-    let mut executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db);
+    let mut executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db, EthEvmConfig::default());
     let block_with_senders = block
         .clone()
         .with_recovered_senders()
@@ -699,7 +703,7 @@ fn calculate_receipts_root(
     .expect("failed to recover senders");
 
     let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
-    let mut block_executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db);
+    let mut block_executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db, EthEvmConfig::default());
     block_executor
         .execute_and_verify_receipt(&new_block, U256::MAX)
         .unwrap();
@@ -729,15 +733,14 @@ fn sign_transaction(secret_key: &SecretKey, transaction: Transaction) -> Transac
 }
 
 fn get_provider_factory() -> TestProviderFactory {
-    let db = create_test_rw_db();
-    ProviderFactory::new(db, GOERLI.clone())
+    create_test_provider_factory_with_chain_spec(GOERLI.clone())
 }
 
 fn add_account(provider_factory: &TestProviderFactory, address: Address, account: Account) {
     let hashed_address = keccak256(address);
     let provider = provider_factory.provider_rw().unwrap();
     let tx = provider.into_tx();
-    tx.put::<tables::HashedAccount>(hashed_address, account)
+    tx.put::<tables::HashedAccounts>(hashed_address, account)
         .unwrap();
     tx.commit().unwrap();
 
@@ -756,11 +759,11 @@ fn add_block_with_hash(provider_factory: &TestProviderFactory, hash: B256, block
         .unwrap();
     tx.put::<tables::CanonicalHeaders>(header.clone().number, hash)
         .unwrap();
-    tx.put::<tables::HeaderTD>(header.number, U256::MAX.into())
-        .unwrap();
+    // tx.put::<tables::HeaderTD>(header.number, U256::MAX.into())
+    //     .unwrap();
     tx.put::<tables::HeaderNumbers>(hash, header.number)
         .unwrap();
-    tx.put::<tables::SyncStage>(
+    tx.put::<tables::StageCheckpoints>(
         StageId::Finish.to_string(),
         StageCheckpoint {
             block_number: header.number,
