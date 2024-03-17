@@ -339,10 +339,10 @@ pub fn full_validation<Provider: HeaderProvider + AccountReader + WithdrawalsPro
 ) -> RethResult<()> {
     validate_header_standalone(&block.header, chain_spec)?;
     validate_block_standalone(block, chain_spec)?;
-    let _parent = validate_block_regarding_chain(block, &provider)?;
+    let parent = validate_block_regarding_chain(block, &provider)?;
 
-    // TODO: This function was removed on reth side, double check effect on validation
-    // validate_header_regarding_parent(&parent, &block.header, chain_spec)?;
+    let header = &block.header;
+    header.validate_against_parent(&parent, chain_spec).map_err(ConsensusError::from)?;
 
     // NOTE: depending on the need of the stages, recovery could be done in different place.
     let transactions = block
