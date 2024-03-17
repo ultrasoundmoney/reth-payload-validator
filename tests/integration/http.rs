@@ -18,17 +18,17 @@ use reth::rpc::compat::engine::payload::try_into_block;
 use reth_db::test_utils::TempDatabase;
 use reth_db::transaction::{DbTx, DbTxMut};
 use reth_db::{tables, DatabaseEnv};
+use reth_node_ethereum::EthEvmConfig;
 use reth_payload_validator::rpc::{
     ValidationApiClient, ValidationApiServer, ValidationRequestBody,
 };
 use reth_payload_validator::ValidationApi;
 use reth_provider::test_utils::create_test_provider_factory_with_chain_spec;
-use reth_node_ethereum::EthEvmConfig;
 
+use ruint::Uint;
 use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use ruint::Uint;
 
 type TestProviderFactory = ProviderFactory<Arc<TempDatabase<DatabaseEnv>>>;
 
@@ -335,7 +335,7 @@ async fn test_proposer_spent_in_same_block() {
             nonce: 0,
             gas_limit: 21000,
             to: TransactionKind::Call(receiver_address),
-            value: amount_to_send.into(),
+            value: amount_to_send,
             input: Bytes::default(),
             max_fee_per_gas: 0x4a817c800,
             max_priority_fee_per_gas: 0x3b9aca00,
@@ -677,7 +677,11 @@ fn calculate_receipts_root(
     let chain_spec = GOERLI.clone();
     let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
 
-    let mut executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db, EthEvmConfig::default());
+    let mut executor = EVMProcessor::new_with_db(
+        chain_spec.clone(),
+        state_provider_db,
+        EthEvmConfig::default(),
+    );
     let block_with_senders = block
         .clone()
         .with_recovered_senders()
@@ -703,7 +707,11 @@ fn calculate_receipts_root(
     .expect("failed to recover senders");
 
     let state_provider_db = StateProviderDatabase::new(provider_factory.latest().unwrap());
-    let mut block_executor = EVMProcessor::new_with_db(chain_spec.clone(), state_provider_db, EthEvmConfig::default());
+    let mut block_executor = EVMProcessor::new_with_db(
+        chain_spec.clone(),
+        state_provider_db,
+        EthEvmConfig::default(),
+    );
     block_executor
         .execute_and_verify_receipt(&new_block, U256::MAX)
         .unwrap();

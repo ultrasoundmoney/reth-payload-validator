@@ -13,9 +13,9 @@
 //! curl --location 'localhost:8545/' --header 'Content-Type: application/json' --data @test/data/rpc_payload.json
 //! ```
 use clap::Parser;
-use reth_node_ethereum::EthereumNode;
 use reth::cli::Cli;
-use reth_payload_validator::{rpc::ValidationApiServer, ValidationCliExt, ValidationApi};
+use reth_node_ethereum::EthereumNode;
+use reth_payload_validator::{rpc::ValidationApiServer, ValidationApi, ValidationCliExt};
 
 fn main() {
     Cli::<ValidationCliExt>::parse()
@@ -37,5 +37,6 @@ fn main() {
                 .launch()
                 .await?;
             handle.wait_for_node_exit().await
-        }).unwrap();
+        })
+        .unwrap();
 }
