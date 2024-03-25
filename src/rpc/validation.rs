@@ -7,8 +7,8 @@ use reth::consensus_common::validation::{
     validate_block_standalone, validate_header_standalone,
 };
 use reth::primitives::{
-    revm_primitives::AccountInfo, Address, ChainSpec, Receipts, SealedBlock, TransactionSigned,
-    U256,
+    revm_primitives::AccountInfo, Address, BlockId, ChainSpec, Receipts, SealedBlock,
+    TransactionSigned, U256,
 };
 use reth::providers::{
     AccountReader, BlockExecutor, BlockReaderIdExt, BundleStateWithReceipts, ChainSpecProvider,
@@ -188,7 +188,10 @@ where
         block: &SealedBlock,
         state: &BundleStateWithReceipts,
     ) -> RpcResult<()> {
-        let state_provider = self.provider.latest().to_rpc_result()?;
+        let state_provider = self
+            .provider
+            .state_by_block_id(BlockId::Hash(block.parent_hash.into()))
+            .to_rpc_result()?;
         let state_root = state_provider
             .state_root(state)
             .map_err(|e| internal_rpc_err(format!("Error computing state root: {e:?}")))?;
