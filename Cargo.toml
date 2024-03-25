@@ -23,12 +23,12 @@ derivative = "2.2.0"
 eyre = "0.6.8"
 hex = "0.4.3"
 jsonrpsee = "0.20.1"
-reth = { git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a" }
-reth-db = { features = ["test-utils"], git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a"}
-reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a", features=["test-utils"]}
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a"}
-reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a"}
-reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", rev = "3b4726a714c3b3bf693dfae1b00da8c06e832c9a"}
+reth = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.3" }
+reth-db = { features = ["test-utils"], git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.3"}
+reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.3", features=["test-utils"]}
+reth-tracing = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.3"}
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.3"}
+reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", tag = "v0.2.0-beta.3"}
 secp256k1 = { version = "0.28.0", features = ["rand-std"] }
 serde = "1.0.188"
 serde_json = "1.0.107"
