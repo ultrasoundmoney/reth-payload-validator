@@ -16,6 +16,11 @@ path = "src/main.rs"
 inherits = "release"
 debug = true
 
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+
 [dependencies]
 async-trait = "0.1.73"
 clap = "4.4.5"
