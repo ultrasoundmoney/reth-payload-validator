@@ -2,9 +2,14 @@ use crate::rpc::result::internal_rpc_err;
 use crate::rpc::types::*;
 use crate::rpc::utils::*;
 use jsonrpsee::core::RpcResult;
-use reth::consensus_common::validation::full_validation;
+use reth::consensus_common::validation::{
+    validate_all_transaction_regarding_block_and_nonces, validate_block_regarding_chain,
+    validate_block_standalone, validate_header_standalone,
+};
+use reth::primitives::SealedHeader;
 use reth::primitives::{
-    revm_primitives::AccountInfo, Address, Receipts, SealedBlock, TransactionSigned, U256,
+    revm_primitives::AccountInfo, Address, BlockId, ChainSpec, Receipts, SealedBlock,
+    TransactionSigned, U256,
 };
 use reth::providers::{
     AccountReader, BlockExecutor, BlockReaderIdExt, BundleStateWithReceipts, ChainSpecProvider,
@@ -13,6 +18,8 @@ use reth::providers::{
 use reth::revm::{database::StateProviderDatabase, db::BundleState, processor::EVMProcessor};
 use reth::rpc::compat::engine::payload::try_into_sealed_block;
 use reth::rpc::result::ToRpcResult;
+use reth_interfaces::{consensus::ConsensusError, RethResult};
+use reth_node_ethereum::EthEvmConfig;
 use reth_tracing::tracing;
 use std::time::Instant;
 use uuid::Uuid;
@@ -71,8 +78,6 @@ where
     }
 
     fn validate_inner(&self) -> RpcResult<()> {
-        self.trace_validation_step(self.check_gas_limit(), "Check Gas Limit")?;
-
         self.trace_validation_step(
             self.compare_message_execution_payload(),
             "Message / Payload comparison",
@@ -80,7 +85,9 @@ where
 
         let block = self.trace_validation_step(self.parse_block(), "Block parsing")?;
 
-        self.trace_validation_step(self.validate_header(&block), "Full validation")?;
+        let parent = self.trace_validation_step(self.validate_header(&block), "Full validation")?;
+
+        self.trace_validation_step(self.check_gas_limit(parent), "Check Gas Limit")?;
 
         let state = self.trace_validation_step(
             self.execute_and_verify_block(&block),
@@ -146,7 +153,7 @@ where
         .to_rpc_result()
     }
 
-    fn validate_header(&self, block: &SealedBlock) -> RpcResult<()> {
+    fn validate_header(&self, block: &SealedBlock) -> RpcResult<SealedHeader> {
         full_validation(block, &self.provider, &self.provider.chain_spec()).to_rpc_result()
     }
 
@@ -154,8 +161,11 @@ where
         let chain_spec = self.provider.chain_spec();
         let state_provider = self.provider.latest().to_rpc_result()?;
 
-        let mut executor =
-            EVMProcessor::new_with_db(chain_spec, StateProviderDatabase::new(&state_provider));
+        let mut executor = EVMProcessor::new_with_db(
+            chain_spec,
+            StateProviderDatabase::new(&state_provider),
+            EthEvmConfig::default(),
+        );
 
         let unsealed_block =
             block
@@ -179,7 +189,10 @@ where
         block: &SealedBlock,
         state: &BundleStateWithReceipts,
     ) -> RpcResult<()> {
-        let state_provider = self.provider.latest().to_rpc_result()?;
+        let state_provider = self
+            .provider
+            .state_by_block_id(BlockId::Hash(block.parent_hash.into()))
+            .to_rpc_result()?;
         let state_root = state_provider
             .state_root(state)
             .map_err(|e| internal_rpc_err(format!("Error computing state root: {e:?}")))?;
@@ -211,20 +224,10 @@ where
         )
     }
 
-    fn check_gas_limit(&self) -> RpcResult<()> {
+    fn check_gas_limit(&self, parent: SealedHeader) -> RpcResult<()> {
         let parent_hash = &self.request_body.execution_payload.parent_hash;
         let registered_gas_limit = self.request_body.registered_gas_limit;
         let block_gas_limit = self.request_body.execution_payload.gas_limit;
-
-        let parent = self
-            .provider
-            .header(parent_hash)
-            .to_rpc_result()?
-            .ok_or(internal_rpc_err(format!(
-                "Parent block with hash {} not found",
-                parent_hash
-            )))?;
-        tracing::debug!(request_id=self.request_id.to_string(), parent_hash = %parent_hash, parent_gas_limit = parent.gas_limit, registered_gas_limit = registered_gas_limit, block_gas_limit = block_gas_limit, "Checking gas limit");
 
         // Prysm has a bug where it registers validators with a desired gas limit
         // of 0. Some builders treat these as desiring gas limit 30_000_000. As a
@@ -327,4 +330,38 @@ fn check_proposer_balance_change(
     };
 
     fee_receiver_account_after.balance >= (fee_receiver_account_before.balance + expected_payment)
+}
+
+/// Full validation of block before execution.
+pub fn full_validation<Provider: HeaderProvider + AccountReader + WithdrawalsProvider>(
+    block: &SealedBlock,
+    provider: Provider,
+    chain_spec: &ChainSpec,
+) -> RethResult<SealedHeader> {
+    validate_header_standalone(&block.header, chain_spec)?;
+    validate_block_standalone(block, chain_spec)?;
+    let parent = validate_block_regarding_chain(block, &provider)?;
+
+    let header = &block.header;
+    header
+        .validate_against_parent(&parent, chain_spec)
+        .map_err(ConsensusError::from)?;
+
+    // NOTE: depending on the need of the stages, recovery could be done in different place.
+    let transactions = block
+        .body
+        .iter()
+        .map(|tx| {
+            tx.try_ecrecovered()
+                .ok_or(ConsensusError::TransactionSignerRecoveryError)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    validate_all_transaction_regarding_block_and_nonces(
+        transactions.iter(),
+        &block.header,
+        provider,
+        chain_spec,
+    )?;
+    Ok(parent)
 }
